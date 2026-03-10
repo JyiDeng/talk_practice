@@ -84,7 +84,7 @@ export default function HomePage() {
         <div>
           <h1 className="text-3xl font-bold gradient-text">欢迎回来！</h1>
           <p className="text-muted-foreground mt-2">
-            持续练习，提升您的职场表达能力
+            持续练习，提升您的学术表达和技术沟通能力
           </p>
         </div>
 

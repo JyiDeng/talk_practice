@@ -37,6 +37,7 @@ export interface PracticeTask {
   description: string | null;
   video_url: string | null;
   difficulty_level: number;
+  difficulty_type: string | null;
   key_points: KeyPoint[] | null;
   reference_answer: string | null;
   language: string;

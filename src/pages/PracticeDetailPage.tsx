@@ -17,9 +17,11 @@ import {
 } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/db/supabase';
-import { ArrowLeft, Video, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, Clock, Brain } from 'lucide-react';
 import type { PracticeTask } from '@/types';
 import { toast } from 'sonner';
+
+type StepType = 'intro' | 'thinking' | 'recording' | 'analyzing' | 'complete';
 
 export default function PracticeDetailPage() {
   const { taskId } = useParams<{ taskId: string }>();
@@ -27,15 +29,30 @@ export default function PracticeDetailPage() {
   const { user } = useAuth();
   const [task, setTask] = useState<PracticeTask | null>(null);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState<'intro' | 'recording' | 'analyzing' | 'complete'>('intro');
+  const [step, setStep] = useState<StepType>('intro');
   const [recordId, setRecordId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [thinkingTime, setThinkingTime] = useState(30);
+  const [recordingTime, setRecordingTime] = useState(60);
 
   useEffect(() => {
     if (taskId) {
       loadTask();
     }
   }, [taskId]);
+
+  // 思考倒计时
+  useEffect(() => {
+    if (step === 'thinking' && thinkingTime > 0) {
+      const timer = setTimeout(() => {
+        setThinkingTime(thinkingTime - 1);
+      }, 1000);
+      return () => clearTimeout(timer);
+    } else if (step === 'thinking' && thinkingTime === 0) {
+      // 思考时间结束，自动进入录音阶段
+      setStep('recording');
+    }
+  }, [step, thinkingTime]);
 
   const loadTask = async () => {
     if (!taskId) return;
@@ -50,6 +67,15 @@ export default function PracticeDetailPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleStartThinking = () => {
+    setStep('thinking');
+    setThinkingTime(30);
+  };
+
+  const handleSkipThinking = () => {
+    setStep('recording');
   };
 
   const handleRecordingComplete = async (audioBlob: Blob, duration: number) => {
@@ -85,7 +111,7 @@ export default function PracticeDetailPage() {
       // 3. 语音识别
       const audioBase64 = await blobToBase64(audioBlob);
       const recognitionResult = await callSpeechRecognition({
-        audioBase64: audioBase64.split(',')[1], // 移除data:audio/wav;base64,前缀
+        audioBase64: audioBase64.split(',')[1],
         format: 'wav',
         rate: 16000,
       });
@@ -179,6 +205,19 @@ export default function PracticeDetailPage() {
     );
   }
 
+  const getDifficultyLabel = (type: string) => {
+    switch (type) {
+      case 'level1':
+        return 'Level 1 - 技术口语';
+      case 'level2':
+        return 'Level 2 - 研究讨论';
+      case 'level3':
+        return 'Level 3 - 技术质疑';
+      default:
+        return '未知难度';
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6 max-w-4xl mx-auto">
@@ -196,22 +235,10 @@ export default function PracticeDetailPage() {
                 <CardTitle className="text-2xl">{task.title}</CardTitle>
                 <CardDescription>{task.description}</CardDescription>
               </div>
-              <Badge variant="outline">{task.language}</Badge>
+              <Badge variant="outline">{getDifficultyLabel(task.difficulty_type || 'level1')}</Badge>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {task.video_url && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Video className="h-4 w-4" />
-                  观看视频
-                </div>
-                <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                  <p className="text-sm text-muted-foreground">视频播放器</p>
-                </div>
-              </div>
-            )}
-
             {task.key_points && task.key_points.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm font-medium">
@@ -231,28 +258,74 @@ export default function PracticeDetailPage() {
           </CardContent>
         </Card>
 
-        {/* 录音区域 */}
+        {/* 开始练习 */}
         {step === 'intro' && (
           <Card>
             <CardHeader>
-              <CardTitle>开始练习</CardTitle>
+              <CardTitle>练习流程</CardTitle>
               <CardDescription>
-                观看视频后，用1-2分钟概括视频内容，点击下方按钮开始录音
+                请先思考30秒，然后用1分钟时间回答问题
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button onClick={() => setStep('recording')} size="lg" className="w-full">
-                开始录音
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <Brain className="h-4 w-4 text-primary" />
+                  <span className="font-medium">第一步：思考时间（30秒）</span>
+                </div>
+                <p className="text-sm text-muted-foreground ml-6">
+                  仔细阅读场景描述和关键要点，组织你的回答思路
+                </p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <Clock className="h-4 w-4 text-primary" />
+                  <span className="font-medium">第二步：录音回答（1分钟）</span>
+                </div>
+                <p className="text-sm text-muted-foreground ml-6">
+                  清晰地表达你的观点，尽量涵盖所有关键要点
+                </p>
+              </div>
+              <Button onClick={handleStartThinking} size="lg" className="w-full">
+                开始练习
               </Button>
             </CardContent>
           </Card>
         )}
 
+        {/* 思考阶段 */}
+        {step === 'thinking' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary animate-pulse" />
+                思考时间
+              </CardTitle>
+              <CardDescription>请仔细思考如何回答这个问题</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex flex-col items-center justify-center py-8">
+                <div className="text-6xl font-bold text-primary mb-4">
+                  {thinkingTime}
+                </div>
+                <p className="text-sm text-muted-foreground">秒</p>
+              </div>
+              <Progress value={((30 - thinkingTime) / 30) * 100} className="h-2" />
+              <Button onClick={handleSkipThinking} variant="outline" className="w-full">
+                跳过思考，直接开始录音
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 录音阶段 */}
         {step === 'recording' && (
           <Card>
             <CardHeader>
               <CardTitle>正在录音</CardTitle>
-              <CardDescription>请清晰地表达您的观点，完成后点击停止</CardDescription>
+              <CardDescription>
+                请清晰地表达您的观点，建议回答时长1分钟左右
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <AudioRecorder onRecordingComplete={handleRecordingComplete} maxDuration={180} />
@@ -260,6 +333,7 @@ export default function PracticeDetailPage() {
           </Card>
         )}
 
+        {/* 分析阶段 */}
         {step === 'analyzing' && (
           <Card>
             <CardHeader>
@@ -281,6 +355,7 @@ export default function PracticeDetailPage() {
           </Card>
         )}
 
+        {/* 完成阶段 */}
         {step === 'complete' && (
           <Card>
             <CardHeader>
