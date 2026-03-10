@@ -8,12 +8,14 @@ import {
   MessageSquare,
   Settings,
   Menu,
-  X,
+  LogOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -32,12 +34,24 @@ const navigation = [
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
 
   const isActive = (href: string) => {
     if (href === '/') {
       return location.pathname === '/';
     }
     return location.pathname.startsWith(href);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setMobileMenuOpen(false);
+      toast.success('已退出登录');
+    } catch (error) {
+      console.error('退出登录失败:', error);
+      toast.error('退出登录失败');
+    }
   };
 
   const SidebarContent = () => (
@@ -70,6 +84,15 @@ export function Layout({ children }: LayoutProps) {
             );
           })}
         </nav>
+      </div>
+      <div className="border-t px-2 py-4 lg:px-4">
+        <div className="mb-3 px-3 text-xs text-muted-foreground">
+          {user?.email || '未登录'}
+        </div>
+        <Button variant="outline" className="w-full gap-2" onClick={() => void handleSignOut()}>
+          <LogOut className="h-4 w-4" />
+          退出登录
+        </Button>
       </div>
     </div>
   );

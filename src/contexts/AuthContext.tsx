@@ -21,8 +21,11 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signInWithUsername: (username: string, password: string) => Promise<{ error: Error | null }>;
-  signUpWithUsername: (username: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signUp: (
+    email: string,
+    password: string
+  ) => Promise<{ error: Error | null; requiresEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -33,6 +36,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const syncUserState = async (nextUser: User | null) => {
+    setUser(nextUser);
+
+    if (!nextUser) {
+      setProfile(null);
+      return;
+    }
+
+    const profileData = await getProfile(nextUser.id);
+    setProfile(profileData);
+  };
 
   const refreshProfile = async () => {
     if (!user) {
@@ -45,14 +60,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    supabase
-      .auth
+    supabase.auth
       .getSession()
-      .then(({ data: { session } }) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          getProfile(session.user.id).then(setProfile);
+      .then(async ({ data: { session } }) => {
+        if (!session) {
+          await syncUserState(null);
+          return;
         }
+
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+
+        if (!userError && userData.user) {
+          await syncUserState(userData.user);
+          return;
+        }
+
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshed.session?.user) {
+          await supabase.auth.signOut();
+          await syncUserState(null);
+          toast.error('登录状态已过期，请重新登录');
+          return;
+        }
+
+        await syncUserState(refreshed.session.user);
       })
       .catch(error => {
         toast.error(`获取用户信息失败: ${error.message}`);
@@ -63,20 +94,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // In this function, do NOT use any await calls. Use `.then()` instead to avoid deadlocks.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        getProfile(session.user.id).then(setProfile);
-      } else {
-        setProfile(null);
-      }
+      syncUserState(session?.user ?? null).catch(error => {
+        console.error('同步登录状态失败:', error);
+      });
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const signInWithUsername = async (username: string, password: string) => {
+  const signIn = async (email: string, password: string) => {
     try {
-      const email = `${username}@miaoda.com`;
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -89,16 +116,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signUpWithUsername = async (username: string, password: string) => {
+  const signUp = async (email: string, password: string) => {
     try {
-      const email = `${username}@miaoda.com`;
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
       });
 
       if (error) throw error;
-      return { error: null };
+
+      return {
+        error: null,
+        requiresEmailConfirmation: !data.session,
+      };
     } catch (error) {
       return { error: error as Error };
     }
@@ -111,7 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signInWithUsername, signUpWithUsername, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

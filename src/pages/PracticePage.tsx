@@ -5,7 +5,7 @@ import { PracticeTaskCard } from '@/components/PracticeTaskCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { getPracticeTasks } from '@/db/api';
+import { callDailyTaskGenerator } from '@/db/api';
 import { supabase } from '@/db/supabase';
 import type { PracticeTask } from '@/types';
 import { toast } from 'sonner';
@@ -61,13 +61,8 @@ export default function PracticePage() {
   const handleGenerateTasks = async () => {
     try {
       setGenerating(true);
-      
-      const { data, error } = await supabase.functions.invoke('daily-task-generator', {
-        method: 'POST',
-      });
 
-      if (error) throw error;
-
+      const data = await callDailyTaskGenerator();
       toast.success(`成功生成 ${data.generated_count} 个新任务！`);
       await loadTasks();
     } catch (error) {

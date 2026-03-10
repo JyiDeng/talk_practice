@@ -1,17 +1,18 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/db/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { signIn, signUp } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -19,37 +20,23 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // 将用户名转换为邮箱格式
-      const email = `${username}@miaoda.com`;
-
       if (isLogin) {
-        // 登录
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
+        const { error } = await signIn(email.trim(), password);
         if (error) throw error;
 
         toast.success('登录成功');
         navigate('/');
       } else {
-        // 注册
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
-
+        const { error, requiresEmailConfirmation } = await signUp(email.trim(), password);
         if (error) throw error;
 
-        toast.success('注册成功，正在登录...');
-        // 注册成功后自动登录
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        if (requiresEmailConfirmation) {
+          toast.success('注册成功，请先完成邮箱确认后再登录');
+          setIsLogin(true);
+          return;
+        }
 
-        if (signInError) throw signInError;
+        toast.success('注册成功');
         navigate('/');
       }
     } catch (error: unknown) {
@@ -78,16 +65,14 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">用户名</Label>
+              <Label htmlFor="email">邮箱</Label>
               <Input
-                id="username"
-                type="text"
-                placeholder="请输入用户名"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="请输入邮箱地址"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
-                pattern="[a-zA-Z0-9_]+"
-                title="只能包含字母、数字和下划线"
               />
             </div>
             <div className="space-y-2">

@@ -140,10 +140,10 @@ END;
 $$;
 
 DROP TRIGGER IF EXISTS on_auth_user_confirmed ON auth.users;
-CREATE TRIGGER on_auth_user_confirmed
-  AFTER UPDATE ON auth.users
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
   FOR EACH ROW
-  WHEN (OLD.confirmed_at IS NULL AND NEW.confirmed_at IS NOT NULL)
   EXECUTE FUNCTION handle_new_user();
 
 -- 创建辅助函数：检查是否为管理员

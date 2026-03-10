@@ -27,6 +27,7 @@ export default function ScenariosPage() {
   const [scenario, setScenario] = useState<ScenarioContent | null>(null);
   const [industry, setIndustry] = useState('');
   const [position, setPosition] = useState('');
+  const [targetScenarios, setTargetScenarios] = useState<string[]>([]);
 
   useEffect(() => {
     loadProfile();
@@ -41,6 +42,7 @@ export default function ScenariosPage() {
         setIndustry(profile.industry || '');
         setPosition(profile.position || '');
         setLanguage(profile.language_preference || '中文');
+        setTargetScenarios(profile.target_scenarios || []);
       }
     } catch (error) {
       console.error('加载职业背景失败:', error);
@@ -58,6 +60,7 @@ export default function ScenariosPage() {
         industry: industry || undefined,
         position: position || undefined,
         language,
+        targetScenarios,
       });
 
       setScenario(content);

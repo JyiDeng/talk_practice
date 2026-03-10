@@ -11,8 +11,11 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const userJwtHeader = req.headers.get('x-supabase-user-jwt');
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    const token = userJwtHeader || authHeader?.replace('Bearer ', '');
+
+    if (!token) {
       return new Response(
         JSON.stringify({ error: '未授权' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -24,7 +27,6 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 验证用户
-    const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {

@@ -1,9 +1,14 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { generateObject } from '../_shared/llm.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+interface WeeklySummary {
+  improvement_summary: string;
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,8 +16,11 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const userJwtHeader = req.headers.get('x-supabase-user-jwt');
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    const token = userJwtHeader || authHeader?.replace('Bearer ', '');
+
+    if (!token) {
       return new Response(
         JSON.stringify({ error: '未授权' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -24,7 +32,6 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 验证用户
-    const token = authHeader.replace('Bearer ', '');
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
 
     if (authError || !user) {
@@ -43,6 +50,9 @@ Deno.serve(async (req) => {
       );
     }
 
+    const weekEndExclusive = new Date(`${weekEnd}T00:00:00.000Z`);
+    weekEndExclusive.setUTCDate(weekEndExclusive.getUTCDate() + 1);
+
     // 查询该周的所有练习记录和分析结果
     const { data: records, error: recordsError } = await supabase
       .from('practice_records')
@@ -55,12 +65,13 @@ Deno.serve(async (req) => {
           logic_score,
           expression_score,
           overall_score,
-          speech_rate
+          speech_rate,
+          missing_points
         )
       `)
       .eq('user_id', user.id)
       .gte('created_at', weekStart)
-      .lte('created_at', weekEnd)
+      .lt('created_at', weekEndExclusive.toISOString())
       .eq('status', 'completed');
 
     if (recordsError) {
@@ -117,24 +128,76 @@ Deno.serve(async (req) => {
       speechRate: speechRateScore,
     };
 
-    // 生成改进总结
-    const improvementSummary = `本周完成${count}次练习。逻辑严密性平均得分${avgLogic.toFixed(1)}分，词汇丰富度平均得分${avgVocabulary.toFixed(1)}分，语速平稳度得分${speechRateScore.toFixed(1)}分。${
-      avgLogic < 70 ? '建议加强逻辑组织能力训练。' : ''
-    }${avgVocabulary < 70 ? '建议扩充专业词汇量。' : ''}${speechRateScore < 70 ? '建议调整语速，保持在150-180字/分钟。' : ''}`;
+    const topMissingPoints = records
+      .flatMap((record) => record.analysis_results || [])
+      .flatMap((analysis) => analysis.missing_points || [])
+      .slice(0, 8);
+
+    let improvementSummary =
+      `本周完成${count}次练习。逻辑严密性平均得分${avgLogic.toFixed(1)}分，` +
+      `词汇丰富度平均得分${avgVocabulary.toFixed(1)}分，语速平稳度得分${speechRateScore.toFixed(1)}分。`;
+
+    try {
+      const summary = await generateObject<WeeklySummary>({
+        messages: [
+          {
+            role: 'system',
+            content:
+              '你是一名学术与技术表达训练教练。请根据用户本周练习表现输出一段简洁、具体、可执行的中文周报总结。',
+          },
+          {
+            role: 'user',
+            content: `请根据以下数据生成周报总结：
+- 周期：${weekStart} 到 ${weekEnd}
+- 练习次数：${count}
+- 平均逻辑得分：${avgLogic.toFixed(1)}
+- 平均词汇得分：${avgVocabulary.toFixed(1)}
+- 平均语速平稳度得分：${speechRateScore.toFixed(1)}
+- 近期常见遗漏点：${topMissingPoints.length > 0 ? topMissingPoints.join('；') : '暂无明显遗漏'}
+
+要求：
+1. 输出 120 字以内
+2. 先概括表现，再指出 1-2 个重点改进方向
+3. 语气专业直接，不要空话`,
+          },
+        ],
+        temperature: 0.5,
+        maxTokens: 400,
+        schema: {
+          name: 'weekly_summary',
+          schema: {
+            type: 'object',
+            properties: {
+              improvement_summary: { type: 'string' },
+            },
+            required: ['improvement_summary'],
+            additionalProperties: false,
+          },
+        },
+      });
+
+      improvementSummary = summary.improvement_summary;
+    } catch (summaryError) {
+      console.error('周报总结生成失败，使用回退文案:', summaryError);
+    }
+
+    const reportPayload = {
+      user_id: user.id,
+      week_start: weekStart,
+      week_end: weekEnd,
+      logic_score: avgLogic,
+      vocabulary_score: avgVocabulary,
+      speech_rate_score: speechRateScore,
+      practice_count: count,
+      improvement_summary: improvementSummary,
+      radar_data: radarData,
+    };
 
     // 保存周报到数据库
     const { data: report, error: insertError } = await supabase
       .from('weekly_reports')
-      .insert({
-        user_id: user.id,
-        week_start: weekStart,
-        week_end: weekEnd,
-        logic_score: avgLogic,
-        vocabulary_score: avgVocabulary,
-        speech_rate_score: speechRateScore,
-        practice_count: count,
-        improvement_summary: improvementSummary,
-        radar_data: radarData,
+      .upsert(reportPayload, {
+        onConflict: 'user_id,week_start',
       })
       .select()
       .single();

@@ -128,6 +128,7 @@ export interface LivePracticeSession {
   id: string;
   user_id: string;
   session_type: string | null;
+  prompt_template: string | null;
   messages: ChatMessage[] | null;
   feedback: string | null;
   duration: number | null;
@@ -138,9 +139,11 @@ export interface LivePracticeSession {
 // Edge Function 请求/响应类型
 
 export interface SpeechRecognitionRequest {
-  audioBase64: string;
+  audioBase64?: string;
+  audioUrl?: string;
   format?: 'wav' | 'm4a';
   rate?: 16000 | 8000;
+  languageHint?: 'zh' | 'en';
 }
 
 export interface SpeechRecognitionResponse {
@@ -166,6 +169,7 @@ export interface AIAnalysisRequest {
   referenceAnswer: string;
   keyPoints: KeyPoint[];
   language?: string;
+  duration?: number;
 }
 
 export interface AIAnalysisResponse {
@@ -177,7 +181,7 @@ export interface AIAnalysisResponse {
   missing_points: string[];
   suggestions: string;
   better_expressions: BetterExpression[];
-  speech_rate: number;
+  speech_rate: number | null;
 }
 
 export interface ScenarioGenerationRequest {
@@ -185,12 +189,14 @@ export interface ScenarioGenerationRequest {
   industry?: string;
   position?: string;
   language?: string;
+  targetScenarios?: string[];
 }
 
 export interface LivePracticeRequest {
   messages: ChatMessage[];
   sessionType?: string;
   language?: string;
+  customPrompt?: string;
 }
 
 export interface LivePracticeResponse {

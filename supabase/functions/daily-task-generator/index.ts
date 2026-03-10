@@ -1,4 +1,5 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { generatePracticeTask, type DifficultyType } from '../_shared/question-generator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,82 +17,39 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const apiKey = Deno.env.get('INTEGRATIONS_API_KEY');
-    if (!apiKey) {
-      throw new Error('INTEGRATIONS_API_KEY not configured');
-    }
-
     // 为每个难度级别生成一个新任务
-    const difficultyTypes = ['level1', 'level2', 'level3'];
+    const difficultyTypes: DifficultyType[] = ['level1', 'level2', 'level3'];
     const generatedTasks = [];
 
     for (const difficultyType of difficultyTypes) {
-      // 调用场景生成API
-      const scenarioResponse = await fetch(
-        `${supabaseUrl}/functions/v1/scenario-generation`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseKey}`,
-          },
-          body: JSON.stringify({
-            difficultyType,
-            language: '中文',
-          }),
+      try {
+        const generated = await generatePracticeTask(difficultyType, '中文');
+        const difficultyLevel = difficultyType === 'level1' ? 1 : difficultyType === 'level2' ? 3 : 5;
+
+        const { data, error } = await supabase
+          .from('practice_tasks')
+          .insert({
+            title: generated.title,
+            description: generated.description,
+            difficulty_level: difficultyLevel,
+            difficulty_type: difficultyType,
+            key_points: generated.key_points,
+            reference_answer: generated.reference_answer,
+            language: generated.language,
+            category: generated.category,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error(`Failed to insert task for ${difficultyType}:`, error);
+          continue;
         }
-      );
 
-      if (!scenarioResponse.ok) {
-        console.error(`Failed to generate scenario for ${difficultyType}`);
-        continue;
+        generatedTasks.push(data);
+      } catch (error) {
+        console.error(`Failed to generate task for ${difficultyType}:`, error);
       }
-
-      const scenarioData = await scenarioResponse.json();
-
-      // 构建任务数据
-      let title, description, keyPoints, category;
-      const difficultyLevel = difficultyType === 'level1' ? 1 : difficultyType === 'level2' ? 3 : 5;
-
-      if (difficultyType === 'level1') {
-        title = scenarioData.title || '技术口语训练';
-        description = scenarioData.background;
-        keyPoints = scenarioData.keywords?.map((kw: string) => ({ point: kw, weight: 0.33 })) || [];
-        category = '技术解释';
-      } else if (difficultyType === 'level2') {
-        title = scenarioData.title || '研究讨论';
-        description = `${scenarioData.background}\n\n导师提问：${scenarioData.advisor_question}`;
-        keyPoints = scenarioData.thinking_hints?.map((hint: string) => ({ point: hint, weight: 0.33 })) || [];
-        category = '研究讨论';
-      } else {
-        title = scenarioData.title || '技术质疑';
-        description = `${scenarioData.background}\n\n质疑问题：${scenarioData.challenge_question}`;
-        keyPoints = scenarioData.key_points?.map((kp: string) => ({ point: kp, weight: 0.33 })) || [];
-        category = '技术面试';
-      }
-
-      // 插入到数据库
-      const { data, error } = await supabase
-        .from('practice_tasks')
-        .insert({
-          title,
-          description,
-          difficulty_level: difficultyLevel,
-          difficulty_type: difficultyType,
-          key_points: keyPoints,
-          reference_answer: scenarioData.task,
-          language: '中文',
-          category,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error(`Failed to insert task for ${difficultyType}:`, error);
-        continue;
-      }
-
-      generatedTasks.push(data);
     }
 
     return new Response(

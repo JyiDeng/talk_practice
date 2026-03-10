@@ -55,9 +55,11 @@ export function AnalysisReport({ analysis }: AnalysisReportProps) {
             <div className="text-right">
               <p className="text-sm text-muted-foreground">语速</p>
               <p className="text-2xl font-semibold">
-                {analysis.speech_rate?.toFixed(0) || 0}
+                {analysis.speech_rate ? analysis.speech_rate.toFixed(0) : '未统计'}
               </p>
-              <p className="text-xs text-muted-foreground">字/分钟</p>
+              <p className="text-xs text-muted-foreground">
+                {analysis.speech_rate ? '字/分钟' : '文本作答不统计'}
+              </p>
             </div>
           </div>
         </CardContent>

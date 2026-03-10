@@ -1,9 +1,23 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { generateObject } from '../_shared/llm.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+interface AnalysisResult {
+  vocabulary_score: number;
+  completeness_score: number;
+  logic_score: number;
+  expression_score: number;
+  overall_score: number;
+  missing_points: string[];
+  suggestions: string;
+  better_expressions: Array<{
+    original: string;
+    improved: string;
+  }>;
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,7 +25,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { transcription, referenceAnswer, keyPoints, language = '中文' } = await req.json();
+    const {
+      transcription,
+      referenceAnswer,
+      keyPoints,
+      language = '中文',
+      duration,
+    } = await req.json();
 
     if (!transcription || !referenceAnswer) {
       return new Response(
@@ -48,112 +68,62 @@ ${transcription}
 
 请分析用户的表达并给出评分和建议。`;
 
-    // 预留Aliyun Qwen API接口
-    // 用户可以在这里配置自己的Qwen API Key
-    const qwenApiKey = Deno.env.get('QWEN_API_KEY');
-    
-    let analysisResult;
-
-    if (qwenApiKey) {
-      // 使用用户配置的Qwen API
-      // 这里预留接口，用户需要根据Qwen API文档实现
-      console.log('使用Aliyun Qwen API进行分析');
-      // TODO: 实现Qwen API调用
-      throw new Error('Qwen API集成待用户配置');
-    } else {
-      // 使用MiniMax作为备选
-      const apiKey = Deno.env.get('INTEGRATIONS_API_KEY');
-      const response = await fetch(
-        'https://app-a5e3v6eh2xoh-api-Aa2PqMJnJGwL-gateway.appmiaoda.com/v1/text/chatcompletion_v2',
-        {
-          method: 'POST',
-          headers: {
-            'X-Gateway-Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'MiniMax-M2.5',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-            response_format: {
-              type: 'json_schema',
-              json_schema: {
-                name: 'analysis_result',
-                strict: true,
-                schema: {
-                  type: 'object',
-                  properties: {
-                    vocabulary_score: { type: 'integer' },
-                    completeness_score: { type: 'integer' },
-                    logic_score: { type: 'integer' },
-                    expression_score: { type: 'integer' },
-                    overall_score: { type: 'integer' },
-                    missing_points: {
-                      type: 'array',
-                      items: { type: 'string' },
-                    },
-                    suggestions: { type: 'string' },
-                    better_expressions: {
-                      type: 'array',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          original: { type: 'string' },
-                          improved: { type: 'string' },
-                        },
-                        required: ['original', 'improved'],
-                        additionalProperties: false,
-                      },
-                    },
-                  },
-                  required: [
-                    'vocabulary_score',
-                    'completeness_score',
-                    'logic_score',
-                    'expression_score',
-                    'overall_score',
-                    'missing_points',
-                    'suggestions',
-                    'better_expressions',
-                  ],
-                  additionalProperties: false,
+    const analysisResult = await generateObject<AnalysisResult>({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+      temperature: 0.4,
+      maxTokens: 2000,
+      schema: {
+        name: 'analysis_result',
+        schema: {
+          type: 'object',
+          properties: {
+            vocabulary_score: { type: 'integer' },
+            completeness_score: { type: 'integer' },
+            logic_score: { type: 'integer' },
+            expression_score: { type: 'integer' },
+            overall_score: { type: 'integer' },
+            missing_points: {
+              type: 'array',
+              items: { type: 'string' },
+            },
+            suggestions: { type: 'string' },
+            better_expressions: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  original: { type: 'string' },
+                  improved: { type: 'string' },
                 },
+                required: ['original', 'improved'],
+                additionalProperties: false,
               },
             },
-            temperature: 0.7,
-            max_completion_tokens: 2000,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('AI分析API错误:', errorText);
-        return new Response(
-          JSON.stringify({ error: 'AI分析失败', details: errorText }),
-          { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const result = await response.json();
-      const content = result.choices?.[0]?.message?.content;
-
-      if (!content) {
-        return new Response(
-          JSON.stringify({ error: 'AI分析返回结果为空' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      analysisResult = JSON.parse(content);
-    }
+          },
+          required: [
+            'vocabulary_score',
+            'completeness_score',
+            'logic_score',
+            'expression_score',
+            'overall_score',
+            'missing_points',
+            'suggestions',
+            'better_expressions',
+          ],
+          additionalProperties: false,
+        },
+      },
+    });
 
     // 计算语速（字/分钟）
     const wordCount = transcription.length;
-    const estimatedDuration = 60; // 假设60秒，实际应从录音时长获取
-    const speechRate = (wordCount / estimatedDuration) * 60;
+    const speechRate =
+      typeof duration === 'number' && duration > 0
+        ? Math.round((wordCount / duration) * 60)
+        : null;
 
     return new Response(
       JSON.stringify({

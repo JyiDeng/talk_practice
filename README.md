@@ -28,9 +28,9 @@
 - **前端**: React + TypeScript + shadcn/ui + Tailwind CSS
 - **后端**: Supabase (数据库 + 认证 + Edge Functions + Storage)
 - **AI服务**: 
-  - 语音识别: 百度短语音识别API
-  - 语音合成: MiniMax语音合成API
-  - AI分析: MiniMax对话API (备选) / Aliyun Qwen (用户自配)
+  - 语音识别: DashScope ASR
+  - 文本生成/分析: Aliyun Qwen
+  - 语音合成: 预留自定义 TTS 接口
 
 ## 快速开始
 
@@ -123,9 +123,9 @@
 - `daily-task-generator` - 每日任务自动生成
 
 ### 存储桶
-- `app-a5e3v6eh2xoh_practice_audio` - 练习录音
-- `app-a5e3v6eh2xoh_scenario_audio` - 场景模拟录音
-- `app-a5e3v6eh2xoh_avatars` - 用户头像
+- `practice-audio` - 练习录音
+- `scenario-audio` - 场景模拟录音
+- `avatars` - 用户头像
 
 ## 权限说明
 
@@ -181,9 +181,28 @@ npm run build
 ```
 
 ### 环境变量
-- `SUPABASE_URL` - Supabase项目URL
-- `SUPABASE_ANON_KEY` - Supabase匿名密钥
-- `QWEN_API_KEY` - Aliyun Qwen API密钥（可选）
+- 复制 [`.env.example`](/Users/jyimac/code/app-talk_practice/.env.example) 为 `.env`
+- 前端使用：
+  - `VITE_SUPABASE_URL` - Supabase 项目 URL
+  - `VITE_SUPABASE_ANON_KEY` - Supabase Publishable Key
+  - `VITE_SUPABASE_PRACTICE_AUDIO_BUCKET` - 练习录音 bucket 名称
+  - `VITE_SUPABASE_SCENARIO_AUDIO_BUCKET` - 场景录音 bucket 名称
+  - `VITE_SUPABASE_AVATARS_BUCKET` - 头像 bucket 名称
+- Edge Functions 使用：
+  - `SUPABASE_URL` - Supabase 项目 URL
+  - `SUPABASE_SERVICE_ROLE_KEY` - Supabase Secret Key
+  - `LLM_PROVIDER` - `qwen` 或 `openai-compatible`
+  - `QWEN_API_KEY` - Aliyun Qwen API 密钥
+  - `QWEN_MODEL` - 可选，默认 `qwen-plus`
+  - `QWEN_BASE_URL` - 可选，默认 `https://dashscope.aliyuncs.com/compatible-mode/v1`
+  - `DASHSCOPE_ASR_MODEL` - 可选，默认 `paraformer-v2`
+  - `OPENAI_COMPATIBLE_API_KEY` / `OPENAI_COMPATIBLE_BASE_URL` - 可选的 OpenAI 兼容回退
+
+本地调试 Supabase Functions 时，可直接让同一份 `.env` 作为函数环境文件：
+
+```bash
+supabase functions serve --env-file .env
+```
 
 ### 定时任务设置
 系统需要配置定时任务每天早上8点调用`daily-task-generator` Edge Function生成新的练习任务。

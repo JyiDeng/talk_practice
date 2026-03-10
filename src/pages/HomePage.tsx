@@ -33,12 +33,22 @@ export default function HomePage() {
     try {
       setLoading(true);
 
-      // 获取今日任务
-      const task = await getTodayTask(user.id);
-      setTodayTask(task);
+      const [taskResult, recordsResult] = await Promise.allSettled([
+        getTodayTask(user.id),
+        getPracticeRecords(user.id, 5),
+      ]);
 
-      // 获取最近的练习记录
-      const records = await getPracticeRecords(user.id, 5);
+      if (taskResult.status === 'fulfilled') {
+        setTodayTask(taskResult.value);
+      } else {
+        console.error('加载今日任务失败:', taskResult.reason);
+        setTodayTask(null);
+      }
+
+      const records = recordsResult.status === 'fulfilled' ? recordsResult.value : [];
+      if (recordsResult.status === 'rejected') {
+        console.error('加载练习记录失败:', recordsResult.reason);
+      }
       setRecentRecords(records);
 
       // 计算统计数据

@@ -106,61 +106,61 @@ CREATE POLICY "用户可以更新自己的对练会话" ON public.live_practice_
 -- 创建存储桶
 INSERT INTO storage.buckets (id, name, public) 
 VALUES 
-  ('app-a5e3v6eh2xoh_practice_audio', 'app-a5e3v6eh2xoh_practice_audio', true),
-  ('app-a5e3v6eh2xoh_scenario_audio', 'app-a5e3v6eh2xoh_scenario_audio', true),
-  ('app-a5e3v6eh2xoh_avatars', 'app-a5e3v6eh2xoh_avatars', true)
+  ('practice-audio', 'practice-audio', true),
+  ('scenario-audio', 'scenario-audio', true),
+  ('avatars', 'avatars', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- 存储桶策略：practice_audio
 CREATE POLICY "认证用户可以上传练习录音" ON storage.objects
   FOR INSERT TO authenticated WITH CHECK (
-    bucket_id = 'app-a5e3v6eh2xoh_practice_audio' AND
+    bucket_id = 'practice-audio' AND
     auth.uid()::text = (storage.foldername(name))[1]
   );
 
 CREATE POLICY "所有人可以读取练习录音" ON storage.objects
-  FOR SELECT TO authenticated USING (bucket_id = 'app-a5e3v6eh2xoh_practice_audio');
+  FOR SELECT TO authenticated USING (bucket_id = 'practice-audio');
 
 CREATE POLICY "用户可以删除自己的练习录音" ON storage.objects
   FOR DELETE TO authenticated USING (
-    bucket_id = 'app-a5e3v6eh2xoh_practice_audio' AND
+    bucket_id = 'practice-audio' AND
     auth.uid()::text = (storage.foldername(name))[1]
   );
 
 -- 存储桶策略：scenario_audio
 CREATE POLICY "认证用户可以上传场景录音" ON storage.objects
   FOR INSERT TO authenticated WITH CHECK (
-    bucket_id = 'app-a5e3v6eh2xoh_scenario_audio' AND
+    bucket_id = 'scenario-audio' AND
     auth.uid()::text = (storage.foldername(name))[1]
   );
 
 CREATE POLICY "所有人可以读取场景录音" ON storage.objects
-  FOR SELECT TO authenticated USING (bucket_id = 'app-a5e3v6eh2xoh_scenario_audio');
+  FOR SELECT TO authenticated USING (bucket_id = 'scenario-audio');
 
 CREATE POLICY "用户可以删除自己的场景录音" ON storage.objects
   FOR DELETE TO authenticated USING (
-    bucket_id = 'app-a5e3v6eh2xoh_scenario_audio' AND
+    bucket_id = 'scenario-audio' AND
     auth.uid()::text = (storage.foldername(name))[1]
   );
 
 -- 存储桶策略：avatars
 CREATE POLICY "认证用户可以上传头像" ON storage.objects
   FOR INSERT TO authenticated WITH CHECK (
-    bucket_id = 'app-a5e3v6eh2xoh_avatars' AND
+    bucket_id = 'avatars' AND
     auth.uid()::text = (storage.foldername(name))[1]
   );
 
 CREATE POLICY "所有人可以读取头像" ON storage.objects
-  FOR SELECT TO authenticated USING (bucket_id = 'app-a5e3v6eh2xoh_avatars');
+  FOR SELECT TO authenticated USING (bucket_id = 'avatars');
 
 CREATE POLICY "用户可以更新自己的头像" ON storage.objects
   FOR UPDATE TO authenticated USING (
-    bucket_id = 'app-a5e3v6eh2xoh_avatars' AND
+    bucket_id = 'avatars' AND
     auth.uid()::text = (storage.foldername(name))[1]
   );
 
 CREATE POLICY "用户可以删除自己的头像" ON storage.objects
   FOR DELETE TO authenticated USING (
-    bucket_id = 'app-a5e3v6eh2xoh_avatars' AND
+    bucket_id = 'avatars' AND
     auth.uid()::text = (storage.foldername(name))[1]
   );

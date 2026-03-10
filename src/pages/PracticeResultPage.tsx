@@ -121,7 +121,9 @@ export default function PracticeResultPage() {
 
             {record.transcription && (
               <div className="space-y-2">
-                <p className="text-sm font-medium">识别文本</p>
+                <p className="text-sm font-medium">
+                  {record.audio_url ? '识别文本' : '回答内容'}
+                </p>
                 <div className="rounded-lg bg-muted p-4">
                   <p className="text-sm leading-relaxed">{record.transcription}</p>
                 </div>

@@ -1,10 +1,11 @@
-import { supabase } from './supabase';
+import { invokePublicEdgeFunction, supabase } from './supabase';
 import type {
   Profile,
   UserCareerProfile,
   PracticeTask,
   PracticeRecord,
   AnalysisResult,
+  ChatMessage,
   WeeklyReport,
   ScenarioSimulation,
   LivePracticeSession,
@@ -22,6 +23,36 @@ import type {
   DifficultyAdjustmentRequest,
   DifficultyAdjustmentResponse,
 } from '@/types';
+
+async function extractFunctionErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === 'object') {
+    const message =
+      'message' in error && typeof error.message === 'string' ? error.message : '';
+
+    const context =
+      'context' in error ? (error as { context?: unknown }).context : undefined;
+
+    if (context && typeof context === 'object' && 'text' in context) {
+      const textFn = (context as { text?: unknown }).text;
+      if (typeof textFn === 'function') {
+        try {
+          const text = await textFn.call(context);
+          if (typeof text === 'string' && text.trim()) {
+            return text;
+          }
+        } catch {
+          // Ignore context parsing failures and fall back to message.
+        }
+      }
+    }
+
+    if (message) {
+      return message;
+    }
+  }
+
+  return fallback;
+}
 
 // ==================== 用户资料相关 ====================
 
@@ -130,9 +161,40 @@ export async function getPracticeTask(taskId: string) {
 }
 
 export async function getTodayTask(userId: string, language = '中文') {
-  // 调用难度调整Edge Function获取推荐任务
-  const result = await callDifficultyAdjustment({ language });
-  return result.task;
+  try {
+    const result = await callDifficultyAdjustment({ language });
+    if (result.task) {
+      return result.task;
+    }
+  } catch (error) {
+    console.warn('获取个性化推荐失败，回退到最新任务:', error);
+  }
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const { data: todayTasks, error: todayError } = await supabase
+    .from('practice_tasks')
+    .select('*')
+    .eq('language', language)
+    .gte('created_at', startOfToday.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (todayError) throw todayError;
+  if (todayTasks && todayTasks.length > 0) {
+    return todayTasks[0] as PracticeTask;
+  }
+
+  const { data: latestTasks, error: latestError } = await supabase
+    .from('practice_tasks')
+    .select('*')
+    .eq('language', language)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (latestError) throw latestError;
+  return latestTasks?.[0] as PracticeTask | null;
 }
 
 // ==================== 练习记录相关 ====================
@@ -314,14 +376,17 @@ export async function getScenarioSimulation(simulationId: string) {
 
 export async function createLivePracticeSession(
   userId: string,
-  sessionType?: string
+  sessionType?: string,
+  messages: ChatMessage[] = [],
+  promptTemplate?: string
 ) {
   const { data, error } = await supabase
     .from('live_practice_sessions')
     .insert({
       user_id: userId,
       session_type: sessionType || null,
-      messages: [],
+      prompt_template: promptTemplate?.trim() || null,
+      messages,
     })
     .select()
     .maybeSingle();
@@ -362,7 +427,7 @@ export async function getLivePracticeSessions(userId: string, limit = 20) {
 export async function callSpeechRecognition(
   request: SpeechRecognitionRequest
 ): Promise<SpeechRecognitionResponse> {
-  const { data, error } = await supabase.functions.invoke<SpeechRecognitionResponse>(
+  const { data, error } = await invokePublicEdgeFunction<SpeechRecognitionResponse>(
     'speech-recognition',
     {
       body: request,
@@ -370,7 +435,7 @@ export async function callSpeechRecognition(
   );
 
   if (error) {
-    const errorMsg = await error?.context?.text();
+    const errorMsg = await extractFunctionErrorMessage(error, '语音识别失败');
     console.error('语音识别错误:', errorMsg || error?.message);
     throw new Error(errorMsg || error?.message || '语音识别失败');
   }
@@ -385,7 +450,7 @@ export async function callSpeechRecognition(
 export async function callSpeechSynthesis(
   request: SpeechSynthesisRequest
 ): Promise<SpeechSynthesisResponse> {
-  const { data, error } = await supabase.functions.invoke<SpeechSynthesisResponse>(
+  const { data, error } = await invokePublicEdgeFunction<SpeechSynthesisResponse>(
     'speech-synthesis',
     {
       body: request,
@@ -393,7 +458,7 @@ export async function callSpeechSynthesis(
   );
 
   if (error) {
-    const errorMsg = await error?.context?.text();
+    const errorMsg = await extractFunctionErrorMessage(error, '语音合成失败');
     console.error('语音合成错误:', errorMsg || error?.message);
     throw new Error(errorMsg || error?.message || '语音合成失败');
   }
@@ -408,7 +473,7 @@ export async function callSpeechSynthesis(
 export async function callAIAnalysis(
   request: AIAnalysisRequest
 ): Promise<AIAnalysisResponse> {
-  const { data, error } = await supabase.functions.invoke<AIAnalysisResponse>(
+  const { data, error } = await invokePublicEdgeFunction<AIAnalysisResponse>(
     'ai-analysis',
     {
       body: request,
@@ -416,7 +481,7 @@ export async function callAIAnalysis(
   );
 
   if (error) {
-    const errorMsg = await error?.context?.text();
+    const errorMsg = await extractFunctionErrorMessage(error, 'AI分析失败');
     console.error('AI分析错误:', errorMsg || error?.message);
     throw new Error(errorMsg || error?.message || 'AI分析失败');
   }
@@ -431,7 +496,7 @@ export async function callAIAnalysis(
 export async function callScenarioGeneration(
   request: ScenarioGenerationRequest
 ): Promise<ScenarioContent> {
-  const { data, error } = await supabase.functions.invoke<ScenarioContent>(
+  const { data, error } = await invokePublicEdgeFunction<ScenarioContent>(
     'scenario-generation',
     {
       body: request,
@@ -439,7 +504,7 @@ export async function callScenarioGeneration(
   );
 
   if (error) {
-    const errorMsg = await error?.context?.text();
+    const errorMsg = await extractFunctionErrorMessage(error, '场景生成失败');
     console.error('场景生成错误:', errorMsg || error?.message);
     throw new Error(errorMsg || error?.message || '场景生成失败');
   }
@@ -454,7 +519,7 @@ export async function callScenarioGeneration(
 export async function callLivePractice(
   request: LivePracticeRequest
 ): Promise<LivePracticeResponse> {
-  const { data, error } = await supabase.functions.invoke<LivePracticeResponse>(
+  const { data, error } = await invokePublicEdgeFunction<LivePracticeResponse>(
     'live-practice',
     {
       body: request,
@@ -462,7 +527,7 @@ export async function callLivePractice(
   );
 
   if (error) {
-    const errorMsg = await error?.context?.text();
+    const errorMsg = await extractFunctionErrorMessage(error, '即时对练失败');
     console.error('即时对练错误:', errorMsg || error?.message);
     throw new Error(errorMsg || error?.message || '即时对练失败');
   }
@@ -474,18 +539,53 @@ export async function callLivePractice(
   return data;
 }
 
-export async function callWeeklyReport(
-  request: WeeklyReportRequest
-): Promise<WeeklyReport> {
-  const { data, error } = await supabase.functions.invoke<WeeklyReport>(
-    'weekly-report',
+interface DailyTaskGeneratorResponse {
+  success: boolean;
+  generated_count: number;
+  tasks: PracticeTask[];
+}
+
+export async function callDailyTaskGenerator(): Promise<DailyTaskGeneratorResponse> {
+  const { data, error } = await invokePublicEdgeFunction<DailyTaskGeneratorResponse>(
+    'daily-task-generator',
     {
-      body: request,
+      method: 'POST',
     }
   );
 
   if (error) {
-    const errorMsg = await error?.context?.text();
+    const errorMsg = await extractFunctionErrorMessage(error, '生成任务失败');
+    console.error('生成任务错误:', errorMsg || error?.message);
+    throw new Error(errorMsg || error?.message || '生成任务失败');
+  }
+
+  if (!data) {
+    throw new Error('生成任务返回数据为空');
+  }
+
+  return data;
+}
+
+export async function callWeeklyReport(
+  request: WeeklyReportRequest
+): Promise<WeeklyReport> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+
+  const { data, error } = await invokePublicEdgeFunction<WeeklyReport>(
+    'weekly-report',
+    {
+      body: request,
+      headers: accessToken
+        ? {
+            'x-supabase-user-jwt': accessToken,
+          }
+        : undefined,
+    }
+  );
+
+  if (error) {
+    const errorMsg = await extractFunctionErrorMessage(error, '周报生成失败');
     console.error('周报生成错误:', errorMsg || error?.message);
     throw new Error(errorMsg || error?.message || '周报生成失败');
   }
@@ -500,15 +600,23 @@ export async function callWeeklyReport(
 export async function callDifficultyAdjustment(
   request: DifficultyAdjustmentRequest
 ): Promise<DifficultyAdjustmentResponse> {
-  const { data, error } = await supabase.functions.invoke<DifficultyAdjustmentResponse>(
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+
+  const { data, error } = await invokePublicEdgeFunction<DifficultyAdjustmentResponse>(
     'difficulty-adjustment',
     {
       body: request,
+      headers: accessToken
+        ? {
+            'x-supabase-user-jwt': accessToken,
+          }
+        : undefined,
     }
   );
 
   if (error) {
-    const errorMsg = await error?.context?.text();
+    const errorMsg = await extractFunctionErrorMessage(error, '难度调整失败');
     console.error('难度调整错误:', errorMsg || error?.message);
     throw new Error(errorMsg || error?.message || '难度调整失败');
   }
