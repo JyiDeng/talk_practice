@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Layout } from '@/components/layouts/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
@@ -33,7 +32,13 @@ import {
   Send,
   User,
 } from 'lucide-react';
-import type { ChatMessage, LivePracticeSession } from '@/types';
+import type {
+  ChatMessage,
+  LivePracticeIssueItem,
+  LivePracticeSession,
+  LivePracticeSummary,
+  LivePracticeVocabularyItem,
+} from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
@@ -53,6 +58,67 @@ const createWelcomeMessage = (): ChatMessage => ({
   role: 'assistant',
   content: WELCOME_MESSAGE,
   timestamp: new Date().toISOString(),
+});
+
+const EMPTY_SUMMARY: LivePracticeSummary = {
+  redundant_phrases: [],
+  grammar_issues: [],
+  advanced_vocabulary: [],
+  logic_issues: [],
+};
+
+const normalizeSummary = (summary: LivePracticeSession['analysis_summary']): LivePracticeSummary => {
+  if (!summary) return EMPTY_SUMMARY;
+  return {
+    redundant_phrases: Array.isArray(summary.redundant_phrases) ? summary.redundant_phrases : [],
+    grammar_issues: Array.isArray(summary.grammar_issues) ? summary.grammar_issues : [],
+    advanced_vocabulary: Array.isArray(summary.advanced_vocabulary) ? summary.advanced_vocabulary : [],
+    logic_issues: Array.isArray(summary.logic_issues) ? summary.logic_issues : [],
+    updated_at: summary.updated_at,
+  };
+};
+
+const mergeIssueItems = (
+  base: LivePracticeIssueItem[],
+  incoming: LivePracticeIssueItem[]
+) => {
+  const map = new Map<string, LivePracticeIssueItem>();
+  for (const item of base) {
+    const key = item.issue.trim().toLowerCase();
+    if (key) map.set(key, item);
+  }
+  for (const item of incoming) {
+    const key = item.issue.trim().toLowerCase();
+    if (key && !map.has(key)) map.set(key, item);
+  }
+  return Array.from(map.values());
+};
+
+const mergeVocabularyItems = (
+  base: LivePracticeVocabularyItem[],
+  incoming: LivePracticeVocabularyItem[]
+) => {
+  const map = new Map<string, LivePracticeVocabularyItem>();
+  for (const item of base) {
+    const key = item.term.trim().toLowerCase();
+    if (key) map.set(key, item);
+  }
+  for (const item of incoming) {
+    const key = item.term.trim().toLowerCase();
+    if (key && !map.has(key)) map.set(key, item);
+  }
+  return Array.from(map.values());
+};
+
+const mergeSummary = (
+  base: LivePracticeSummary,
+  turn: LivePracticeSummary
+): LivePracticeSummary => ({
+  redundant_phrases: mergeIssueItems(base.redundant_phrases, turn.redundant_phrases),
+  grammar_issues: mergeIssueItems(base.grammar_issues, turn.grammar_issues),
+  advanced_vocabulary: mergeVocabularyItems(base.advanced_vocabulary, turn.advanced_vocabulary),
+  logic_issues: mergeIssueItems(base.logic_issues, turn.logic_issues),
+  updated_at: new Date().toISOString(),
 });
 
 const normalizeMessages = (messages: LivePracticeSession['messages']) =>
@@ -134,7 +200,11 @@ export default function LivePracticePage() {
   const [promptDraft, setPromptDraft] = useState(DEFAULT_PROMPT_TEMPLATE);
   const [copiedMessageKey, setCopiedMessageKey] = useState<string | null>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const copyResetTimerRef = useRef<number | null>(null);
+  const [isComposing, setIsComposing] = useState(false);
+  const currentSession = sessions.find((session) => session.id === sessionId) || null;
+  const currentSummary = normalizeSummary(currentSession?.analysis_summary || null);
 
   useEffect(() => {
     void initializePage();
@@ -260,6 +330,18 @@ export default function LivePracticePage() {
     }
   };
 
+  const adjustInputHeight = () => {
+    if (!inputRef.current) return;
+    const el = inputRef.current;
+    el.style.height = 'auto';
+    const maxHeight = 112;
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+  };
+
+  useEffect(() => {
+    adjustInputHeight();
+  }, [input]);
+
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
@@ -306,6 +388,7 @@ export default function LivePracticePage() {
         sessionType: selectedSession?.session_type || DEFAULT_SESSION_TYPE,
         language: '中文',
         customPrompt: currentPromptTemplate,
+        existingSummary: normalizeSummary(selectedSession?.analysis_summary || null),
       });
 
       const assistantMessage: ChatMessage = {
@@ -316,10 +399,41 @@ export default function LivePracticePage() {
 
       const updatedMessages = [...newMessages, assistantMessage];
       setMessages(updatedMessages);
+      const mergedSummary = mergeSummary(
+        normalizeSummary(selectedSession?.analysis_summary || null),
+        normalizeSummary(response.turnSummary)
+      );
 
-      const updatedSession = await updateLivePracticeSession(activeSessionId, {
+      // 先同步本地会话，避免 UI 出现“回复已显示但复盘为空”的割裂感。
+      syncSession({
+        ...(selectedSession || {
+          id: activeSessionId,
+          user_id: user?.id || '',
+          session_type: DEFAULT_SESSION_TYPE,
+          prompt_template: currentPromptTemplate,
+          feedback: null,
+          duration: null,
+          created_at: new Date().toISOString(),
+          ended_at: null,
+        }),
         messages: updatedMessages,
-      });
+        analysis_summary: mergedSummary,
+      } as LivePracticeSession);
+
+      // 关键修复：优先保存“消息本体”；summary 写入失败不应导致消息丢失。
+      let updatedSession: LivePracticeSession | null = null;
+      try {
+        updatedSession = await updateLivePracticeSession(activeSessionId, {
+          messages: updatedMessages,
+          analysis_summary: mergedSummary,
+        });
+      } catch (summaryPersistError) {
+        console.warn('保存复盘总结失败，回退为仅保存消息:', summaryPersistError);
+        updatedSession = await updateLivePracticeSession(activeSessionId, {
+          messages: updatedMessages,
+        });
+        toast.error('复盘总结暂未保存，但对话内容已保留');
+      }
 
       if (updatedSession) {
         syncSession(updatedSession);
@@ -332,8 +446,8 @@ export default function LivePracticePage() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey && !isComposing && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void handleSend();
     }
@@ -389,10 +503,10 @@ export default function LivePracticePage() {
               type="button"
               key={session.id}
               className={cn(
-                'w-full rounded-lg border p-3 text-left transition-colors',
+                'w-full overflow-hidden rounded-lg border p-3 text-left transition-colors duration-200',
                 session.id === sessionId
                   ? 'border-primary bg-primary/5'
-                  : 'hover:bg-muted'
+                  : 'bg-card hover:bg-muted'
               )}
               onClick={() => selectSession(session)}
             >
@@ -401,11 +515,11 @@ export default function LivePracticePage() {
                   <p className="truncate text-sm font-medium">
                     {getSessionTitle(session)}
                   </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
                     {getSessionSummary(session)}
                   </p>
                 </div>
-                <span className="shrink-0 text-xs text-muted-foreground">
+                <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
                   {formatTime(session.created_at, true)}
                 </span>
               </div>
@@ -420,7 +534,7 @@ export default function LivePracticePage() {
 
   return (
     <Layout>
-      <div className="mx-auto flex h-[calc(100dvh-8rem)] max-w-7xl gap-4">
+      <div className="mx-auto flex h-[calc(100vh-5.5rem)] min-h-[calc(100svh-5.5rem)] max-w-7xl gap-4">
         <Card className="flex min-h-0 flex-1 flex-col">
           <CardHeader className="border-b">
             <div className="flex items-start justify-between gap-3">
@@ -511,19 +625,18 @@ export default function LivePracticePage() {
                   >
                     {message.role === 'assistant' ? (
                       <>
-                        <ReactMarkdown
-                          className={ASSISTANT_MARKDOWN_CLASSNAME}
-                          remarkPlugins={[remarkGfm]}
-                        >
-                          {message.content}
-                        </ReactMarkdown>
+                        <div className={ASSISTANT_MARKDOWN_CLASSNAME}>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
                         <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-2 text-xs text-muted-foreground">
                           <div>{message.timestamp ? formatTime(message.timestamp) : null}</div>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            className="h-7 gap-1.5 px-2 text-xs text-muted-foreground"
                             onClick={() =>
                               void handleCopyMessage(message, `${message.timestamp || 'message'}-${index}`)
                             }
@@ -580,16 +693,91 @@ export default function LivePracticePage() {
             </div>
 
             <div className="border-t p-4">
+              <div className="mb-4 rounded-lg border bg-muted/20 p-3">
+                <p className="text-sm font-medium">复盘总结</p>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  每次回复后自动提取并累计：冗余词、语法、词汇升级、逻辑问题
+                </p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">冗余词总结</p>
+                    {currentSummary.redundant_phrases.length === 0 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">暂无</p>
+                    ) : (
+                      <ul className="mt-1 list-disc space-y-1 pl-5 text-xs">
+                        {currentSummary.redundant_phrases.map((item, index) => (
+                          <li key={`redundant-${item.issue}-${index}`}>
+                            {item.issue}
+                            {' -> '}
+                            {item.suggestion}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">语法改进</p>
+                    {currentSummary.grammar_issues.length === 0 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">暂无</p>
+                    ) : (
+                      <ul className="mt-1 list-disc space-y-1 pl-5 text-xs">
+                        {currentSummary.grammar_issues.map((item, index) => (
+                          <li key={`grammar-${item.issue}-${index}`}>
+                            {item.issue}
+                            {' -> '}
+                            {item.suggestion}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">高级词汇表达</p>
+                    {currentSummary.advanced_vocabulary.length === 0 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">暂无</p>
+                    ) : (
+                      <ul className="mt-1 list-disc space-y-1 pl-5 text-xs">
+                        {currentSummary.advanced_vocabulary.map((item, index) => (
+                          <li key={`vocab-${item.term}-${index}`}>
+                            {item.term}：{item.usage}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">逻辑注意点</p>
+                    {currentSummary.logic_issues.length === 0 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">暂无</p>
+                    ) : (
+                      <ul className="mt-1 list-disc space-y-1 pl-5 text-xs">
+                        {currentSummary.logic_issues.map((item, index) => (
+                          <li key={`logic-${item.issue}-${index}`}>
+                            {item.issue}
+                            {' -> '}
+                            {item.suggestion}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </div>
               <p className="mb-2 text-xs text-muted-foreground">
                 当前 Prompt: {isCustomPrompt ? '已自定义' : '默认模板'}。点击“新建对话”可编辑。
               </p>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="输入您的消息..."
+              <div className="flex items-end gap-2">
+                <Textarea
+                  ref={inputRef}
+                  placeholder="输入您的消息...（Shift+Enter 换行）"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={() => setIsComposing(false)}
                   disabled={loading}
+                  rows={1}
+                  className="min-h-[40px] max-h-[112px] resize-y overflow-y-auto"
                 />
                 <Button
                   onClick={() => void handleSend()}
@@ -609,7 +797,7 @@ export default function LivePracticePage() {
 
         <Card
           className={cn(
-            'hidden min-h-0 overflow-hidden transition-all duration-200 lg:flex lg:flex-col',
+            'hidden min-h-0 overflow-hidden lg:flex lg:flex-col',
             historyOpen ? 'w-80' : 'w-16'
           )}
         >

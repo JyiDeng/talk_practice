@@ -1,15 +1,17 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Play, Clock, TrendingUp } from 'lucide-react';
+import { Play, Clock, TrendingUp, Trash2 } from 'lucide-react';
 import type { PracticeTask } from '@/types';
 
 interface PracticeTaskCardProps {
   task: PracticeTask;
   onStart?: () => void;
+  onDelete?: () => void;
+  deleting?: boolean;
 }
 
-export function PracticeTaskCard({ task, onStart }: PracticeTaskCardProps) {
+export function PracticeTaskCard({ task, onStart, onDelete, deleting = false }: PracticeTaskCardProps) {
   const getDifficultyColor = (level: number) => {
     if (level <= 2) return 'bg-green-500';
     if (level <= 3) return 'bg-yellow-500';
@@ -65,11 +67,26 @@ export function PracticeTaskCard({ task, onStart }: PracticeTaskCardProps) {
           </div>
         )}
 
-        {onStart && (
-          <Button onClick={onStart} className="w-full gap-2">
-            <Play className="h-4 w-4" />
-            开始练习
-          </Button>
+        {(onStart || onDelete) && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {onStart && (
+              <Button onClick={onStart} className="w-full gap-2">
+                <Play className="h-4 w-4" />
+                开始练习
+              </Button>
+            )}
+            {onDelete && (
+              <Button
+                onClick={onDelete}
+                className="w-full gap-2"
+                variant="destructive"
+                disabled={deleting}
+              >
+                <Trash2 className="h-4 w-4" />
+                {deleting ? '删除中...' : '删除卡片'}
+              </Button>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

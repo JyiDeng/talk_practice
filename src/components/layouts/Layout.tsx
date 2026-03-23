@@ -6,6 +6,8 @@ import {
   BarChart3,
   Briefcase,
   MessageSquare,
+  ListChecks,
+  LibraryBig,
   Settings,
   Menu,
   LogOut,
@@ -28,6 +30,8 @@ const navigation = [
   { name: '周报分析', href: '/reports', icon: BarChart3 },
   { name: '场景模拟', href: '/scenarios', icon: Briefcase },
   { name: '即时对练', href: '/live-practice', icon: MessageSquare },
+  { name: '复盘条目', href: '/live-practice-review', icon: ListChecks },
+  { name: '拆书任务', href: '/book-decompose', icon: LibraryBig },
   { name: '个人设置', href: '/settings', icon: Settings },
 ];
 

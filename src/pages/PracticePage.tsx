@@ -5,7 +5,7 @@ import { PracticeTaskCard } from '@/components/PracticeTaskCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { callDailyTaskGenerator } from '@/db/api';
+import { callDailyTaskGenerator, deletePracticeTask } from '@/db/api';
 import { supabase } from '@/db/supabase';
 import type { PracticeTask } from '@/types';
 import { toast } from 'sonner';
@@ -18,6 +18,7 @@ export default function PracticePage() {
   const [level3Tasks, setLevel3Tasks] = useState<PracticeTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [deletingTaskIds, setDeletingTaskIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState('level1');
 
   useEffect(() => {
@@ -77,6 +78,30 @@ export default function PracticePage() {
     navigate(`/practice/${taskId}`);
   };
 
+  const removeTaskFromState = (taskId: string) => {
+    setLevel1Tasks((prev) => prev.filter((task) => task.id !== taskId));
+    setLevel2Tasks((prev) => prev.filter((task) => task.id !== taskId));
+    setLevel3Tasks((prev) => prev.filter((task) => task.id !== taskId));
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    try {
+      setDeletingTaskIds((prev) => new Set(prev).add(taskId));
+      await deletePracticeTask(taskId);
+      removeTaskFromState(taskId);
+      toast.success('卡片已删除');
+    } catch (error) {
+      console.error('删除任务失败:', error);
+      toast.error('删除失败，请确认您有权限删除该任务');
+    } finally {
+      setDeletingTaskIds((prev) => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+    }
+  };
+
   const renderTaskList = (tasks: PracticeTask[], emptyMessage: string) => {
     if (loading) {
       return (
@@ -116,6 +141,8 @@ export default function PracticePage() {
             key={task.id}
             task={task}
             onStart={() => handleStartTask(task.id)}
+            onDelete={() => handleDeleteTask(task.id)}
+            deleting={deletingTaskIds.has(task.id)}
           />
         ))}
       </div>

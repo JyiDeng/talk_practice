@@ -130,10 +130,31 @@ export interface LivePracticeSession {
   session_type: string | null;
   prompt_template: string | null;
   messages: ChatMessage[] | null;
+  analysis_summary: LivePracticeSummary | null;
   feedback: string | null;
   duration: number | null;
   created_at: string;
   ended_at: string | null;
+}
+
+export interface LivePracticeIssueItem {
+  issue: string;
+  suggestion: string;
+  example?: string;
+}
+
+export interface LivePracticeVocabularyItem {
+  term: string;
+  usage: string;
+  note?: string;
+}
+
+export interface LivePracticeSummary {
+  redundant_phrases: LivePracticeIssueItem[];
+  grammar_issues: LivePracticeIssueItem[];
+  advanced_vocabulary: LivePracticeVocabularyItem[];
+  logic_issues: LivePracticeIssueItem[];
+  updated_at?: string;
 }
 
 // Edge Function 请求/响应类型
@@ -197,10 +218,12 @@ export interface LivePracticeRequest {
   sessionType?: string;
   language?: string;
   customPrompt?: string;
+  existingSummary?: LivePracticeSummary | null;
 }
 
 export interface LivePracticeResponse {
   message: string;
+  turnSummary: LivePracticeSummary;
 }
 
 export interface WeeklyReportRequest {

@@ -203,14 +203,25 @@ async function invokeModel(
   maxTokens = 1200,
   responseFormat?: { type: 'json_object' | 'json_schema'; json_schema?: JsonSchemaConfig }
 ) {
+  const normalizedMessages =
+    responseFormat
+      ? [
+          ...messages,
+          {
+            role: 'system' as const,
+            content: 'Return valid JSON only.',
+          },
+        ]
+      : messages;
+
   const provider = resolveProvider();
   if (provider === 'qwen') {
-    return callQwen(messages, temperature, maxTokens, responseFormat);
+    return callQwen(normalizedMessages, temperature, maxTokens, responseFormat);
   }
   if (provider === 'openai-compatible') {
-    return callOpenAiCompatible(messages, temperature, maxTokens, responseFormat);
+    return callOpenAiCompatible(normalizedMessages, temperature, maxTokens, responseFormat);
   }
-  return callLegacyGateway(messages, temperature, maxTokens, responseFormat);
+  return callLegacyGateway(normalizedMessages, temperature, maxTokens, responseFormat);
 }
 
 export async function generateText({
@@ -227,14 +238,37 @@ export async function generateObject<T>({
   temperature = 0.7,
   maxTokens = 1200,
 }: GenerateObjectOptions<T>): Promise<T> {
-  const content = await invokeModel(messages, temperature, maxTokens, {
-    type: 'json_schema',
-    json_schema: {
-      name: schema.name,
-      schema: schema.schema,
-      strict: schema.strict ?? true,
-    },
-  });
+  try {
+    const content = await invokeModel(messages, temperature, maxTokens, {
+      type: 'json_schema',
+      json_schema: {
+        name: schema.name,
+        schema: schema.schema,
+        strict: schema.strict ?? true,
+      },
+    });
 
-  return JSON.parse(content) as T;
+    return JSON.parse(content) as T;
+  } catch (error) {
+    // Some OpenAI-compatible providers (including certain model routes)
+    // may not reliably honor json_schema. Fallback to plain text + JSON extraction.
+    console.warn('generateObject json_schema failed, fallback to text parsing:', error);
+    const fallbackMessages: LlmMessage[] = [
+      ...messages,
+      {
+        role: 'system',
+        content:
+          'Return valid JSON only. Do not use markdown fences. The whole response must be one JSON object.',
+      },
+    ];
+    const raw = await invokeModel(fallbackMessages, temperature, maxTokens);
+    const trimmed = raw.trim();
+    const first = trimmed.indexOf('{');
+    const last = trimmed.lastIndexOf('}');
+    if (first !== -1 && last !== -1 && last > first) {
+      const maybeJson = trimmed.slice(first, last + 1);
+      return JSON.parse(maybeJson) as T;
+    }
+    throw new Error('Model did not return parseable JSON');
+  }
 }

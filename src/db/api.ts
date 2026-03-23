@@ -160,6 +160,15 @@ export async function getPracticeTask(taskId: string) {
   return data as PracticeTask | null;
 }
 
+export async function deletePracticeTask(taskId: string) {
+  const { error } = await supabase
+    .from('practice_tasks')
+    .delete()
+    .eq('id', taskId);
+
+  if (error) throw error;
+}
+
 export async function getTodayTask(userId: string, language = '中文') {
   try {
     const result = await callDifficultyAdjustment({ language });
@@ -545,6 +554,48 @@ interface DailyTaskGeneratorResponse {
   tasks: PracticeTask[];
 }
 
+interface BookGeneratedTask {
+  title: string;
+  description: string;
+  key_points: Array<{ point: string; weight: number }>;
+  reference_answer: string;
+  category: string;
+  language: string;
+  difficulty_type: 'level1' | 'level2' | 'level3';
+}
+
+interface BookTaskGenerateRequest {
+  action: 'generate';
+  sourceUrl?: string;
+  sourceText?: string;
+  topic?: string;
+  taskCount?: number;
+  useVector?: boolean;
+  debugRawModel?: boolean;
+}
+
+interface BookTaskGenerateResponse {
+  success: boolean;
+  source_id: string;
+  source_url: string | null;
+  source_preview: string;
+  chunk_count: number;
+  retrieval_mode: 'vector-pg' | 'vector-qdrant' | 'sequential';
+  tasks: BookGeneratedTask[];
+  raw_model_output: string | null;
+}
+
+interface BookTaskSaveRequest {
+  action: 'save';
+  tasks: BookGeneratedTask[];
+}
+
+interface BookTaskSaveResponse {
+  success: boolean;
+  inserted_count: number;
+  tasks: PracticeTask[];
+}
+
 export async function callDailyTaskGenerator(): Promise<DailyTaskGeneratorResponse> {
   const { data, error } = await invokePublicEdgeFunction<DailyTaskGeneratorResponse>(
     'daily-task-generator',
@@ -561,6 +612,52 @@ export async function callDailyTaskGenerator(): Promise<DailyTaskGeneratorRespon
 
   if (!data) {
     throw new Error('生成任务返回数据为空');
+  }
+
+  return data;
+}
+
+export async function callBookTaskGenerator(
+  request: BookTaskGenerateRequest
+): Promise<BookTaskGenerateResponse> {
+  const { data, error } = await invokePublicEdgeFunction<BookTaskGenerateResponse>(
+    'book-task-generator',
+    {
+      body: request,
+    }
+  );
+
+  if (error) {
+    const errorMsg = await extractFunctionErrorMessage(error, '拆书任务生成失败');
+    console.error('拆书任务生成错误:', errorMsg || error?.message);
+    throw new Error(errorMsg || error?.message || '拆书任务生成失败');
+  }
+
+  if (!data) {
+    throw new Error('拆书任务生成返回数据为空');
+  }
+
+  return data;
+}
+
+export async function saveBookGeneratedTasks(
+  request: BookTaskSaveRequest
+): Promise<BookTaskSaveResponse> {
+  const { data, error } = await invokePublicEdgeFunction<BookTaskSaveResponse>(
+    'book-task-generator',
+    {
+      body: request,
+    }
+  );
+
+  if (error) {
+    const errorMsg = await extractFunctionErrorMessage(error, '拆书任务保存失败');
+    console.error('拆书任务保存错误:', errorMsg || error?.message);
+    throw new Error(errorMsg || error?.message || '拆书任务保存失败');
+  }
+
+  if (!data) {
+    throw new Error('拆书任务保存返回数据为空');
   }
 
   return data;

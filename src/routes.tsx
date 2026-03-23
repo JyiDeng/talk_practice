@@ -9,7 +9,9 @@ import PracticeResultPage from './pages/PracticeResultPage';
 import ReportsPage from './pages/ReportsPage';
 import ScenariosPage from './pages/ScenariosPage';
 import LivePracticePage from './pages/LivePracticePage';
+import LivePracticeReviewPage from './pages/LivePracticeReviewPage';
 import SettingsPage from './pages/SettingsPage';
+import BookDecomposePage from './pages/BookDecomposePage';
 import type { ReactNode } from 'react';
 
 interface RouteConfig {
@@ -74,6 +76,16 @@ const routes: RouteConfig[] = [
     name: 'Live Practice',
     path: '/live-practice',
     element: <LivePracticePage />,
+  },
+  {
+    name: 'Live Practice Review',
+    path: '/live-practice-review',
+    element: <LivePracticeReviewPage />,
+  },
+  {
+    name: 'Book Decompose',
+    path: '/book-decompose',
+    element: <BookDecomposePage />,
   },
   {
     name: 'Settings',
