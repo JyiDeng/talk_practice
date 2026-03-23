@@ -25,6 +25,8 @@ import {
   Bot,
   ChevronLeft,
   ChevronRight,
+  Check,
+  Copy,
   History,
   Loader2,
   MessageSquarePlus,
@@ -32,18 +34,20 @@ import {
   User,
 } from 'lucide-react';
 import type { ChatMessage, LivePracticeSession } from '@/types';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-const WELCOME_MESSAGE = '您好！我是您的职场表达能力导师。我可以帮助您练习各种职场沟通场景，并给予实时反馈。请告诉我您想练习什么场景，或者直接开始对话吧！';
+const WELCOME_MESSAGE = '您好！我是您的职场表达能力导师。我可以帮助您练习各种职场沟通场景，并给予实时反馈。请用语音输入的方式直接开始对话吧！';
 const DEFAULT_SESSION_TYPE = '即时对练';
 const DEFAULT_PROMPT_TEMPLATE = `请在本次对练中按以下要求进行：
 1. 练习主题：
 2. 目标场景：
-3. 我希望你扮演的对象：
+3. 我希望你扮演的对象：给我完整正确答案的导师
 4. 语气与风格要求：
-5. 我希望你重点纠正的问题（例如逻辑、表达、专业术语、礼貌度）：
-6. 其他补充要求：`;
+5. 我希望你重点纠正的问题：逻辑、内容、专业术语准确度、中文语法礼貌度
+6. 其他补充要求：上述要纠正的`;
 
 const createWelcomeMessage = (): ChatMessage => ({
   role: 'assistant',
@@ -95,6 +99,27 @@ const getSessionSummary = (session: LivePracticeSession) => {
   return `${messageCount} 条消息`;
 };
 
+const ASSISTANT_MARKDOWN_CLASSNAME = cn(
+  'text-sm leading-relaxed break-words',
+  '[&_p]:my-0 [&_p+*]:mt-3',
+  '[&_h1]:mt-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:tracking-tight',
+  '[&_h2]:mt-4 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:tracking-tight',
+  '[&_h3]:mt-3 [&_h3]:text-base [&_h3]:font-semibold',
+  '[&_strong]:font-semibold [&_em]:italic',
+  '[&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-5',
+  '[&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-5',
+  '[&_li]:mt-1 [&_li>p]:my-0',
+  '[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:text-muted-foreground',
+  '[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-4',
+  '[&_hr]:my-4 [&_hr]:border-border',
+  '[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_table]:overflow-hidden [&_table]:rounded-md',
+  '[&_th]:border [&_th]:border-border/80 [&_th]:bg-background/70 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-medium',
+  '[&_td]:border [&_td]:border-border/70 [&_td]:px-3 [&_td]:py-2',
+  '[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:border [&_pre]:border-border/70 [&_pre]:bg-background/80 [&_pre]:p-3',
+  '[&_code]:rounded [&_code]:bg-background/80 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em]',
+  '[&_pre_code]:bg-transparent [&_pre_code]:p-0'
+);
+
 export default function LivePracticePage() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -107,7 +132,9 @@ export default function LivePracticePage() {
   const [currentPromptTemplate, setCurrentPromptTemplate] = useState(DEFAULT_PROMPT_TEMPLATE);
   const [promptEditorOpen, setPromptEditorOpen] = useState(false);
   const [promptDraft, setPromptDraft] = useState(DEFAULT_PROMPT_TEMPLATE);
+  const [copiedMessageKey, setCopiedMessageKey] = useState<string | null>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     void initializePage();
@@ -116,6 +143,14 @@ export default function LivePracticePage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+    };
+  }, []);
 
   const syncSession = (session: LivePracticeSession) => {
     setSessions((currentSessions) => {
@@ -170,6 +205,7 @@ export default function LivePracticePage() {
       setSessions([]);
       setMessages([]);
       setSessionId(null);
+      setPromptEditorOpen(false);
       return;
     }
 
@@ -184,15 +220,34 @@ export default function LivePracticePage() {
       }
 
       setSessionId(null);
-      setMessages([]);
+      setMessages([createWelcomeMessage()]);
       setCurrentPromptTemplate(DEFAULT_PROMPT_TEMPLATE);
       setPromptDraft(DEFAULT_PROMPT_TEMPLATE);
-      setPromptEditorOpen(true);
+      setPromptEditorOpen(false);
     } catch (error) {
       console.error('加载即时对练失败:', error);
       toast.error('加载即时对练失败');
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const handleCopyMessage = async (message: ChatMessage, key: string) => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+
+      if (copyResetTimerRef.current) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+
+      setCopiedMessageKey(key);
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setCopiedMessageKey(null);
+      }, 2000);
+      toast.success('已复制 Markdown 内容');
+    } catch (error) {
+      console.error('复制消息失败', error);
+      toast.error('复制失败，请稍后重试');
     }
   };
 
@@ -206,7 +261,23 @@ export default function LivePracticePage() {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || loading || !sessionId) return;
+    if (!input.trim() || loading) return;
+
+    let activeSessionId = sessionId;
+
+    if (!activeSessionId) {
+      const createdSession = await createSession({
+        sessionType: DEFAULT_SESSION_TYPE,
+        promptTemplate: currentPromptTemplate,
+      });
+
+      if (!createdSession) {
+        toast.error('创建对话失败，请稍后重试');
+        return;
+      }
+
+      activeSessionId = createdSession.id;
+    }
 
     const userMessage: ChatMessage = {
       role: 'user',
@@ -220,7 +291,7 @@ export default function LivePracticePage() {
     setLoading(true);
 
     try {
-      const pendingSession = await updateLivePracticeSession(sessionId, {
+      const pendingSession = await updateLivePracticeSession(activeSessionId, {
         messages: newMessages,
       });
 
@@ -229,7 +300,7 @@ export default function LivePracticePage() {
       }
 
       // 调用AI对练
-      const selectedSession = sessions.find((session) => session.id === sessionId);
+      const selectedSession = sessions.find((session) => session.id === activeSessionId);
       const response = await callLivePractice({
         messages: newMessages.map(m => ({ role: m.role, content: m.content })),
         sessionType: selectedSession?.session_type || DEFAULT_SESSION_TYPE,
@@ -246,7 +317,7 @@ export default function LivePracticePage() {
       const updatedMessages = [...newMessages, assistantMessage];
       setMessages(updatedMessages);
 
-      const updatedSession = await updateLivePracticeSession(sessionId, {
+      const updatedSession = await updateLivePracticeSession(activeSessionId, {
         messages: updatedMessages,
       });
 
@@ -432,19 +503,56 @@ export default function LivePracticePage() {
                   )}
                   <div
                     className={cn(
-                      'max-w-[80%] rounded-lg px-4 py-2',
+                      'max-w-[80%] rounded-lg px-4 py-3',
                       message.role === 'user'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted'
                     )}
                   >
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {message.content}
-                    </p>
-                    {message.timestamp && (
-                      <p className="mt-1 text-xs opacity-70">
-                        {formatTime(message.timestamp)}
-                      </p>
+                    {message.role === 'assistant' ? (
+                      <>
+                        <ReactMarkdown
+                          className={ASSISTANT_MARKDOWN_CLASSNAME}
+                          remarkPlugins={[remarkGfm]}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                        <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-2 text-xs text-muted-foreground">
+                          <div>{message.timestamp ? formatTime(message.timestamp) : null}</div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() =>
+                              void handleCopyMessage(message, `${message.timestamp || 'message'}-${index}`)
+                            }
+                          >
+                            {copiedMessageKey === `${message.timestamp || 'message'}-${index}` ? (
+                              <>
+                                <Check className="h-3.5 w-3.5" />
+                                已复制
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3.5 w-3.5" />
+                                复制 Markdown
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                          {message.content}
+                        </p>
+                        {message.timestamp && (
+                          <p className="mt-1 text-xs opacity-70">
+                            {formatTime(message.timestamp)}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                   {message.role === 'user' && (
@@ -481,11 +589,11 @@ export default function LivePracticePage() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  disabled={loading || !sessionId}
+                  disabled={loading}
                 />
                 <Button
                   onClick={() => void handleSend()}
-                  disabled={loading || !input.trim() || !sessionId}
+                  disabled={loading || !input.trim()}
                   size="icon"
                 >
                   {loading ? (

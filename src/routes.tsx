@@ -1,5 +1,7 @@
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import PracticePage from './pages/PracticePage';
 import PracticeDetailPage from './pages/PracticeDetailPage';
 import HistoryPage from './pages/HistoryPage';
@@ -22,6 +24,16 @@ const routes: RouteConfig[] = [
     name: 'Login',
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    name: 'Forgot Password',
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
+  },
+  {
+    name: 'Reset Password',
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
   },
   {
     name: 'Home',
