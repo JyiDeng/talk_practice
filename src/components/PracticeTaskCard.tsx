@@ -1,17 +1,24 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Play, Clock, TrendingUp, Trash2 } from 'lucide-react';
+import { Play, Clock, TrendingUp, Trash2, CheckCircle2 } from 'lucide-react';
 import type { PracticeTask } from '@/types';
 
 interface PracticeTaskCardProps {
   task: PracticeTask;
+  isPracticed?: boolean;
   onStart?: () => void;
   onDelete?: () => void;
   deleting?: boolean;
 }
 
-export function PracticeTaskCard({ task, onStart, onDelete, deleting = false }: PracticeTaskCardProps) {
+export function PracticeTaskCard({
+  task,
+  isPracticed = false,
+  onStart,
+  onDelete,
+  deleting = false,
+}: PracticeTaskCardProps) {
   const getDifficultyColor = (level: number) => {
     if (level <= 2) return 'bg-green-500';
     if (level <= 3) return 'bg-yellow-500';
@@ -27,7 +34,11 @@ export function PracticeTaskCard({ task, onStart, onDelete, deleting = false }: 
   };
 
   return (
-    <Card className="hover:shadow-lg transition-shadow">
+    <Card
+      className={`transition-shadow hover:shadow-lg ${
+        isPracticed ? 'border-muted opacity-70 saturate-75' : ''
+      }`}
+    >
       <CardHeader>
         <div className="flex items-start justify-between">
           <div className="space-y-1 flex-1">
@@ -39,6 +50,12 @@ export function PracticeTaskCard({ task, onStart, onDelete, deleting = false }: 
               <TrendingUp className="h-3 w-3" />
               {getDifficultyText(task.difficulty_level)}
             </Badge>
+            {isPracticed && (
+              <Badge variant="secondary" className="gap-1">
+                <CheckCircle2 className="h-3 w-3" />
+                已练习
+              </Badge>
+            )}
             <div className={`h-2 w-16 rounded-full ${getDifficultyColor(task.difficulty_level)}`} />
           </div>
         </div>
@@ -72,7 +89,7 @@ export function PracticeTaskCard({ task, onStart, onDelete, deleting = false }: 
             {onStart && (
               <Button onClick={onStart} className="w-full gap-2">
                 <Play className="h-4 w-4" />
-                开始练习
+                {isPracticed ? '再次练习' : '开始练习'}
               </Button>
             )}
             {onDelete && (

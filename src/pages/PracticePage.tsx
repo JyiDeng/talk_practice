@@ -16,10 +16,24 @@ export default function PracticePage() {
   const [level1Tasks, setLevel1Tasks] = useState<PracticeTask[]>([]);
   const [level2Tasks, setLevel2Tasks] = useState<PracticeTask[]>([]);
   const [level3Tasks, setLevel3Tasks] = useState<PracticeTask[]>([]);
+  const [practicedTaskIds, setPracticedTaskIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [deletingTaskIds, setDeletingTaskIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState('level1');
+
+  const sortTasksByPracticeStatus = (tasks: PracticeTask[], practicedIds: Set<string>) => {
+    return [...tasks].sort((a, b) => {
+      const aPracticed = practicedIds.has(a.id);
+      const bPracticed = practicedIds.has(b.id);
+
+      if (aPracticed !== bPracticed) {
+        return aPracticed ? 1 : -1;
+      }
+
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  };
 
   useEffect(() => {
     loadTasks();
@@ -38,14 +52,49 @@ export default function PracticePage() {
 
       if (error) throw error;
 
+      const taskIds = (data || []).map((task: PracticeTask) => task.id);
+      const nextPracticedTaskIds = new Set<string>();
+
+      if (taskIds.length > 0) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (user) {
+          const { data: records, error: recordsError } = await supabase
+            .from('practice_records')
+            .select('task_id')
+            .eq('user_id', user.id)
+            .in('task_id', taskIds);
+
+          if (recordsError) throw recordsError;
+
+          (records || []).forEach((record: { task_id: string | null }) => {
+            if (record.task_id) {
+              nextPracticedTaskIds.add(record.task_id);
+            }
+          });
+        }
+      }
+
       // 按难度分组
-      const level1 = (data || []).filter((t: PracticeTask) => t.difficulty_type === 'level1');
-      const level2 = (data || []).filter((t: PracticeTask) => t.difficulty_type === 'level2');
-      const level3 = (data || []).filter((t: PracticeTask) => t.difficulty_type === 'level3');
+      const level1 = sortTasksByPracticeStatus(
+        (data || []).filter((t: PracticeTask) => t.difficulty_type === 'level1'),
+        nextPracticedTaskIds
+      );
+      const level2 = sortTasksByPracticeStatus(
+        (data || []).filter((t: PracticeTask) => t.difficulty_type === 'level2'),
+        nextPracticedTaskIds
+      );
+      const level3 = sortTasksByPracticeStatus(
+        (data || []).filter((t: PracticeTask) => t.difficulty_type === 'level3'),
+        nextPracticedTaskIds
+      );
 
       setLevel1Tasks(level1);
       setLevel2Tasks(level2);
       setLevel3Tasks(level3);
+      setPracticedTaskIds(nextPracticedTaskIds);
 
     } catch (error) {
       console.error('加载任务失败:', error);
@@ -78,6 +127,11 @@ export default function PracticePage() {
     setLevel1Tasks((prev) => prev.filter((task) => task.id !== taskId));
     setLevel2Tasks((prev) => prev.filter((task) => task.id !== taskId));
     setLevel3Tasks((prev) => prev.filter((task) => task.id !== taskId));
+    setPracticedTaskIds((prev) => {
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
   };
 
   const handleDeleteTask = async (taskId: string) => {
@@ -136,6 +190,7 @@ export default function PracticePage() {
           <PracticeTaskCard
             key={task.id}
             task={task}
+            isPracticed={practicedTaskIds.has(task.id)}
             onStart={() => handleStartTask(task.id)}
             onDelete={() => handleDeleteTask(task.id)}
             deleting={deletingTaskIds.has(task.id)}
