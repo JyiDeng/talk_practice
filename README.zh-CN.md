@@ -1,12 +1,14 @@
 # Scholavo（学述）
 
-面向研究者与工程师的 AI 口语训练平台。
+✨ 面向研究者与工程师的 AI 口语训练平台。
 
-EN: Scholavo is an AI-powered speaking practice platform that helps researchers and engineers improve structured technical communication through daily drills, real-time coaching, and actionable analysis.
+Scholavo（学述）是一个 AI 驱动的口语训练平台，通过每日任务、实时对练与可执行分析，帮助研究者和工程师提升结构化技术表达能力。
 
-中文：Scholavo（学述）是一个 AI 驱动的口语训练平台，通过每日任务、实时对练与可执行分析，帮助研究者和工程师提升结构化技术表达能力。
+English README: [English](README.md)
 
-Language: [English](README.md)
+![alt text](pic/image.png)
+
+![alt text](pic/image-1.png)
 
 ## 功能概览
 

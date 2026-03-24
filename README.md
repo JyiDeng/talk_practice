@@ -1,12 +1,14 @@
 # Scholavo
 
-AI-powered speaking practice for researchers and engineers.
+✨ AI-powered speaking practice for researchers and engineers.
 
-EN: Scholavo is an AI-powered speaking practice platform that helps researchers and engineers improve structured technical communication through daily drills, real-time coaching, and actionable analysis.
+Scholavo is an AI-powered speaking practice platform that helps researchers and engineers improve structured technical communication through daily drills, real-time coaching, and actionable analysis.
 
-中文：Scholavo（学述）是一个 AI 驱动的口语训练平台，通过每日任务、实时对练与可执行分析，帮助研究者和工程师提升结构化技术表达能力。
+Chinese README: [简体中文](README.zh-CN.md)
 
-Language: [简体中文](README.zh-CN.md)
+![alt text](pic/image.png)
+
+![alt text](pic/image-1.png)
 
 ## What It Does
 
