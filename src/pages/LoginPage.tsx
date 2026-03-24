@@ -56,7 +56,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-3xl font-bold text-center gradient-text">
-            学术口语训练系统
+            Scholavo 学述口语训练系统
           </CardTitle>
           <CardDescription className="text-center">
             {isLogin ? '登录您的账户' : '创建新账户'}

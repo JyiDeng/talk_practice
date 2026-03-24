@@ -1,215 +1,121 @@
-# 学术口语训练系统
+# Scholavo
 
-一款针对AI表征学习与软件工程研究人员的技术表达训练平台，通过每日学术场景练习、智能语音分析、定制化技术讨论等方式提升学术表达和技术沟通能力。
+AI-powered speaking practice for researchers and engineers.
 
-## 功能特点
+EN: Scholavo is an AI-powered speaking practice platform that helps researchers and engineers improve structured technical communication through daily drills, real-time coaching, and actionable analysis.
 
-### 核心功能
-- **三级难度训练体系**
-  - **Level 1 - 渐进难度口语训练**：技术解释、工程讨论、技术决策
-  - **Level 2 - 研究型口语训练**：组会讨论、论文brainstorming、实验分析
-  - **Level 3 - 高压面试/技术质疑**：技术面试、研究答辩、技术辩论
+中文：Scholavo（学述）是一个 AI 驱动的口语训练平台，通过每日任务、实时对练与可执行分析，帮助研究者和工程师提升结构化技术表达能力。
 
-- **每日自动生成练习**：系统每天早上8点自动生成三个难度级别的新练习任务
-- **智能练习流程**：30秒思考时间 + 1分钟回答时间，培养快速组织思路的能力
-- **智能语音分析**：从词汇运用、内容完整性、逻辑组织、表达方法四个维度分析
-- **周报生成**：每周自动生成表达力分析报告，使用雷达图展示提升轨迹
-- **即时对练功能**：与虚拟技术导师进行实时对话，获得即时反馈
+Language: [简体中文](README.zh-CN.md)
 
-### 技术特点
-- 专注于AI表征学习和软件工程方向
-- 真实科研和工程场景模拟
-- 低耦合设计，易于扩展
-- 完整的用户认证和权限管理
-- 响应式设计，支持桌面和移动端
+## What It Does
 
-## 技术栈
+- 3-level practice system for technical explanation, research discussion, and high-pressure defense.
+- Daily auto-generated tasks (scheduled generator) to keep practice fresh.
+- Timed practice loop: think first, then record and respond.
+- AI analysis after each attempt (vocabulary, completeness, logic, expression quality).
+- Weekly report with trend insights and radar visualization.
+- Live practice chat with an AI mentor and session review.
+- Scenario simulation for role-based communication drills.
+- Book-to-task workbench to turn source material into new practice tasks.
 
-- **前端**: React + TypeScript + shadcn/ui + Tailwind CSS
-- **后端**: Supabase (数据库 + 认证 + Edge Functions + Storage)
-- **AI服务**: 
-  - 语音识别: DashScope ASR
-  - 文本生成/分析: Aliyun Qwen
-  - 语音合成: 预留自定义 TTS 接口
+## Core Product Areas
 
-## 快速开始
+- Daily Practice: structured tasks by difficulty.
+- Practice History & Result Review: attempt records and detailed analysis.
+- Weekly Reports: periodic progress summary.
+- Scenario Simulation: generated role-play situations.
+- Live Practice: multi-turn conversational coaching.
+- Book Decompose Workbench: generate/import tasks and save them to the daily pool.
 
-### 1. 注册账户
-- 访问系统并注册账户
-- 第一个注册的用户将自动成为管理员
+## Tech Stack
 
-### 2. 开始练习
-- 系统每天自动生成三个难度级别的练习任务
-- 选择适合自己的难度开始练习
-- 先思考30秒，然后用1分钟时间回答
+- Frontend: React + TypeScript + Tailwind CSS + shadcn/ui
+- Backend: Supabase (Postgres, Auth, Storage, Edge Functions)
+- AI/Voice:
+  - Speech recognition: DashScope ASR
+  - Text generation and analysis: Qwen (or OpenAI-compatible provider)
+  - Speech synthesis: extensible custom TTS interface
 
-### 3. 查看分析报告
-- 练习完成后查看详细的AI分析报告
-- 了解自己在各个维度的表现
-- 获得针对性的改进建议
+## Architecture Overview
 
-## 使用指南
+### Main Tables
 
-### 每日练习
-
-#### Level 1 - 渐进难度口语训练
-适合每天练习，从简单解释到复杂技术讨论：
-- **技术解释**：解释一个概念、模型设计、系统模块
-- **工程讨论**：讨论系统设计、模型选择、性能问题
-- **技术决策**：在多个方案中做决策并说明理由
-
-#### Level 2 - 研究型口语训练
-模拟博士组会和学术讨论：
-- 研究组会讨论
-- 论文brainstorming
-- 实验失败分析
-- 模型设计讨论
-- 研究方向探索
-
-#### Level 3 - 高压面试/技术质疑
-最强训练模式：
-- 技术面试
-- 系统设计评审
-- 论文答辩
-- 实验方法质疑
-- 模型设计挑战
-
-### 练习流程
-1. 选择一个练习任务
-2. 阅读场景描述和关键要点
-3. **思考30秒**：组织你的回答思路
-4. **录音1分钟**：清晰表达你的观点
-5. 系统自动进行语音识别和AI分析
-6. 查看详细的分析报告
-
-### 分析维度
-- **词汇运用** (0-100分) - 词汇的丰富性、准确性和专业性
-- **内容完整性** (0-100分) - 是否涵盖所有关键信息点
-- **逻辑组织** (0-100分) - 表达的逻辑性、条理性和连贯性
-- **表达方法** (0-100分) - 表达的清晰度、说服力和感染力
-
-### 周报分析
-- 每周一可生成上周的表达力分析报告
-- 雷达图展示三个核心维度：
-  - 逻辑严密性
-  - 词汇丰富度
-  - 语速平稳度
-
-### 即时对练
-1. 与虚拟技术导师进行实时对话
-2. 获得关于技术表达的即时反馈
-3. 支持反复练习与即时纠正
-
-## 系统架构
-
-### 数据库表结构
-- `profiles` - 用户资料
-- `user_career_profiles` - 用户偏好设置
-- `practice_tasks` - 练习任务（包含difficulty_type字段）
-- `practice_records` - 练习记录
-- `analysis_results` - 分析结果
-- `weekly_reports` - 周报
-- `scenario_simulations` - 场景模拟
-- `live_practice_sessions` - 即时对练会话
+- `profiles`
+- `user_career_profiles`
+- `practice_tasks`
+- `practice_records`
+- `analysis_results`
+- `weekly_reports`
+- `scenario_simulations`
+- `live_practice_sessions`
 
 ### Edge Functions
-- `speech-recognition` - 语音识别
-- `speech-synthesis` - 语音合成
-- `ai-analysis` - AI分析
-- `scenario-generation` - 场景生成（支持三种难度模板）
-- `live-practice` - 即时对练
-- `weekly-report` - 周报生成
-- `difficulty-adjustment` - 难度调整
-- `daily-task-generator` - 每日任务自动生成
 
-### 存储桶
-- `practice-audio` - 练习录音
-- `scenario-audio` - 场景模拟录音
-- `avatars` - 用户头像
+- `speech-recognition`
+- `speech-synthesis`
+- `ai-analysis`
+- `scenario-generation`
+- `live-practice`
+- `weekly-report`
+- `difficulty-adjustment`
+- `daily-task-generator`
+- `book-task-generator`
 
-## 权限说明
+### Storage Buckets
 
-### 用户权限
-- 查看和编辑自己的资料
-- 进行练习并查看自己的记录
-- 生成和查看自己的周报
-- 使用场景模拟和即时对练功能
+- `practice-audio`
+- `scenario-audio`
+- `avatars`
 
-### 管理员权限
-- 所有用户权限
-- 查看所有用户信息
-- 管理用户角色
-- 查看所有练习记录和分析结果
+## Quick Start
 
-## 注意事项
-
-1. **录音要求**
-   - 支持格式：WAV、M4A
-   - 采样率：16000 Hz
-   - 建议时长：1分钟左右
-   - 最长时长：180秒（3分钟）
-
-2. **练习建议**
-   - 先从Level 1开始，逐步提升难度
-   - 充分利用30秒思考时间组织思路
-   - 回答时注意覆盖所有关键要点
-   - 保持语速平稳，理想语速：150-180字/分钟
-
-3. **API配额**
-   - 系统使用的第三方API有调用配额限制
-   - 如遇到配额超限错误，请稍后再试
-
-4. **浏览器兼容性**
-   - 推荐使用Chrome、Edge、Safari等现代浏览器
-   - 需要授权麦克风权限才能录音
-
-## 开发说明
-
-### 本地开发
 ```bash
-# 安装依赖
-npm install
-
-# 启动开发服务器
-npm run dev
-
-# 运行lint检查
-npm run lint
-
-# 构建生产版本
-npm run build
+pnpm install
+pnpm dev
 ```
 
-### 环境变量
-- 复制 [`.env.example`](/Users/jyimac/code/app-talk_practice/.env.example) 为 `.env`
-- 前端使用：
-  - `VITE_SUPABASE_URL` - Supabase 项目 URL
-  - `VITE_SUPABASE_ANON_KEY` - Supabase Publishable Key
-  - `VITE_SUPABASE_PRACTICE_AUDIO_BUCKET` - 练习录音 bucket 名称
-  - `VITE_SUPABASE_SCENARIO_AUDIO_BUCKET` - 场景录音 bucket 名称
-  - `VITE_SUPABASE_AVATARS_BUCKET` - 头像 bucket 名称
-- Edge Functions 使用：
-  - `SUPABASE_URL` - Supabase 项目 URL
-  - `SUPABASE_SERVICE_ROLE_KEY` - Supabase Secret Key
-  - `LLM_PROVIDER` - `qwen` 或 `openai-compatible`
-  - `QWEN_API_KEY` - Aliyun Qwen API 密钥
-  - `QWEN_MODEL` - 可选，默认 `qwen-plus`
-  - `QWEN_BASE_URL` - 可选，默认 `https://dashscope.aliyuncs.com/compatible-mode/v1`
-  - `DASHSCOPE_ASR_MODEL` - 可选，默认 `paraformer-v2`
-  - `OPENAI_COMPATIBLE_API_KEY` / `OPENAI_COMPATIBLE_BASE_URL` - 可选的 OpenAI 兼容回退
+Other common commands:
 
-本地调试 Supabase Functions 时，可直接让同一份 `.env` 作为函数环境文件：
+```bash
+pnpm lint
+pnpm build
+pnpm preview
+```
+
+## Environment Variables
+
+Create `.env` (for local app + local function serving) and define:
+
+- Frontend
+  - `VITE_SUPABASE_URL`
+  - `VITE_SUPABASE_ANON_KEY`
+  - `VITE_SUPABASE_PRACTICE_AUDIO_BUCKET`
+  - `VITE_SUPABASE_SCENARIO_AUDIO_BUCKET`
+  - `VITE_SUPABASE_AVATARS_BUCKET`
+- Edge Functions
+  - `SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `LLM_PROVIDER` (`qwen` or `openai-compatible`)
+  - `QWEN_API_KEY`
+  - `QWEN_MODEL` (optional)
+  - `QWEN_BASE_URL` (optional)
+  - `DASHSCOPE_ASR_MODEL` (optional)
+  - `OPENAI_COMPATIBLE_API_KEY` (optional)
+  - `OPENAI_COMPATIBLE_BASE_URL` (optional)
+
+Serve functions locally with the same env file:
 
 ```bash
 supabase functions serve --env-file .env
 ```
 
-### 定时任务设置
-系统需要配置定时任务每天早上8点调用`daily-task-generator` Edge Function生成新的练习任务。
+## Scheduling Daily Task Generation
 
-可以使用Supabase的pg_cron扩展或外部定时任务服务（如GitHub Actions、Vercel Cron等）来实现。
+Set up a daily cron job (08:00) to trigger `daily-task-generator`.
 
-示例（使用pg_cron）：
+Example using `pg_cron`:
+
 ```sql
 SELECT cron.schedule(
   'daily-task-generation',
@@ -224,6 +130,17 @@ SELECT cron.schedule(
 );
 ```
 
-## 许可证
+## Permissions
 
-© 2026 学术口语训练系统. All rights reserved.
+- User:
+  - Manage own profile
+  - Complete practices and view own results/reports
+  - Use scenarios and live practice
+- Admin:
+  - All user permissions
+  - View users and records globally
+  - Manage user roles
+
+## License
+
+Copyright (c) 2026 Scholavo. All rights reserved.
