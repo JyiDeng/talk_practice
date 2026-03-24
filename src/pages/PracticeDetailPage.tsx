@@ -148,9 +148,18 @@ export default function PracticeDetailPage() {
 
       setProgress(audioBlob ? 70 : 55);
 
+      const fallbackReferenceAnswer = [
+        `请围绕题目“${task.title}”组织结构化回答。`,
+        task.key_points && task.key_points.length > 0
+          ? `建议覆盖要点：${task.key_points.map((item) => item.point).join('；')}`
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
       const analysisResult = await callAIAnalysis({
         transcription: finalTranscription,
-        referenceAnswer: task.reference_answer || '',
+        referenceAnswer: task.reference_answer?.trim() || fallbackReferenceAnswer,
         keyPoints: task.key_points || [],
         language: task.language,
         duration,

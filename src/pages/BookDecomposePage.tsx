@@ -152,7 +152,7 @@ export default function BookDecomposePage() {
           title: itemTitle,
           description: `手动导入题目（序号 ${match[1]}）`,
           key_points: [{ point: itemTitle, weight: 1 } as KeyPoint],
-          reference_answer: '',
+          reference_answer: `请围绕题目“${itemTitle}”进行回答，建议包含：定义与背景、个人观点、具体案例、可执行建议。`,
           category: importCategory.trim() || '自定义题库',
           difficulty_type: importDifficultyType,
           difficulty_level: mapDifficultyLevel(importDifficultyType),
