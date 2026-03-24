@@ -1,0 +1,4 @@
+#!/bin/sh
+
+# Run build after git pull (merge mode).
+"$(git rev-parse --show-toplevel)/scripts/auto-build-after-git.sh"
