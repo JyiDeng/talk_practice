@@ -207,7 +207,7 @@ export default function PracticePage() {
           <div>
             <h1 className="text-3xl font-bold gradient-text">学术口语训练</h1>
             <p className="text-muted-foreground mt-2">
-              AI表征学习与软件工程方向的技术表达训练
+              定制化的表达训练
             </p>
           </div>
           <Button onClick={handleGenerateTasks} disabled={generating} variant="outline" className="gap-2">
