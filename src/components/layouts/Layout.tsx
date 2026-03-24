@@ -4,7 +4,6 @@ import {
   BookOpen,
   History,
   BarChart3,
-  Briefcase,
   MessageSquare,
   ListChecks,
   LibraryBig,
@@ -28,7 +27,6 @@ const navigation = [
   { name: '每日练习', href: '/practice', icon: BookOpen },
   { name: '练习历史', href: '/history', icon: History },
   { name: '周报分析', href: '/reports', icon: BarChart3 },
-  { name: '场景模拟', href: '/scenarios', icon: Briefcase },
   { name: '即时对练', href: '/live-practice', icon: MessageSquare },
   { name: '复盘条目', href: '/live-practice-review', icon: ListChecks },
   { name: '拆书任务', href: '/book-decompose', icon: LibraryBig },
@@ -44,7 +42,7 @@ export function Layout({ children }: LayoutProps) {
     if (href === '/') {
       return location.pathname === '/';
     }
-    return location.pathname.startsWith(href);
+    return location.pathname === href || location.pathname.startsWith(`${href}/`);
   };
 
   const handleSignOut = async () => {

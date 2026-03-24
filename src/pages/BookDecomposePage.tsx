@@ -11,7 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { callBookTaskGenerator, saveBookGeneratedTasks } from '@/db/api';
 import { toast } from 'sonner';
-import { BookMarked, Sparkles, Save, Globe, FileText, CheckSquare } from 'lucide-react';
+import { BookMarked, Sparkles, Save, Globe, FileText, CheckSquare, ListPlus } from 'lucide-react';
 import type { KeyPoint } from '@/types';
 
 type DifficultyType = 'level1' | 'level2' | 'level3';
@@ -28,14 +28,26 @@ interface GeneratedTaskDraft {
 }
 
 const DEFAULT_SOURCE_URL =
-  'https://ma-lab-berkeley.github.io/deep-representation-learning-book/';
+  '';
+
+const NUMBERED_ITEM_REGEX = /(\d{1,3})[\.\)、)]\s*([\s\S]*?)(?=(?:\d{1,3}[\.\)、)]\s*)|$)/g;
+
+const mapDifficultyLevel = (difficultyType: DifficultyType) => {
+  if (difficultyType === 'level1') return 1;
+  if (difficultyType === 'level2') return 3;
+  return 5;
+};
 
 export default function BookDecomposePage() {
+  const [workbenchMode, setWorkbenchMode] = useState<'semantic' | 'list-import'>('semantic');
   const [sourceType, setSourceType] = useState<'url' | 'text'>('url');
   const [sourceUrl, setSourceUrl] = useState(DEFAULT_SOURCE_URL);
   const [sourceText, setSourceText] = useState('');
   const [topic, setTopic] = useState('深度表征学习');
   const [taskCount, setTaskCount] = useState(8);
+  const [listInput, setListInput] = useState('');
+  const [importCategory, setImportCategory] = useState('自定义题库');
+  const [importDifficultyType, setImportDifficultyType] = useState<DifficultyType>('level1');
   const [generatedTasks, setGeneratedTasks] = useState<GeneratedTaskDraft[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
@@ -120,6 +132,47 @@ export default function BookDecomposePage() {
     setSelectedIds(new Set());
   };
 
+  const handleImportByList = () => {
+    const raw = listInput.trim();
+    if (!raw) {
+      toast.error('请先输入编号列表内容');
+      return;
+    }
+
+    const matches = Array.from(raw.matchAll(NUMBERED_ITEM_REGEX));
+    const drafts: GeneratedTaskDraft[] = matches
+      .map((match, index) => {
+        const itemTitle = match[2].replace(/\s+/g, ' ').trim();
+        if (!itemTitle) {
+          return null;
+        }
+
+        return {
+          id: `${Date.now()}-manual-${index}`,
+          title: itemTitle,
+          description: `手动导入题目（序号 ${match[1]}）`,
+          key_points: [{ point: itemTitle, weight: 1 } as KeyPoint],
+          reference_answer: '',
+          category: importCategory.trim() || '自定义题库',
+          difficulty_type: importDifficultyType,
+          difficulty_level: mapDifficultyLevel(importDifficultyType),
+        };
+      })
+      .filter((task): task is GeneratedTaskDraft => task !== null);
+
+    if (drafts.length === 0) {
+      toast.error('未识别到有效编号格式，请按“1. 内容 2. 内容”输入');
+      return;
+    }
+
+    setSourcePreview('');
+    setRawModelOutput('');
+    setRetrievalMode(null);
+    setGeneratedTasks(drafts);
+    setSelectedIds(new Set(drafts.map((task) => task.id)));
+    toast.success(`已从列表导入 ${drafts.length} 条题目`);
+  };
+
   const saveToPracticeTasks = async () => {
     if (selectedIds.size === 0) {
       toast.error('请至少选择 1 条任务');
@@ -165,116 +218,190 @@ export default function BookDecomposePage() {
           </p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookMarked className="h-5 w-5 text-primary" />
-              内容输入
-            </CardTitle>
-            <CardDescription>
-              支持网页自动抓取正文，并通过向量检索 + API 语义拆解生成任务。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Tabs value={sourceType} onValueChange={(value) => setSourceType(value as 'url' | 'text')}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="url" className="gap-2">
-                  <Globe className="h-4 w-4" />
-                  网页来源
-                </TabsTrigger>
-                <TabsTrigger value="text" className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  纯文本来源
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="url" className="space-y-3 mt-4">
-                <Label htmlFor="source-url">网页地址</Label>
-                <Input
-                  id="source-url"
-                  value={sourceUrl}
-                  onChange={(event) => setSourceUrl(event.target.value)}
-                  placeholder="输入需要拆解的网页链接"
-                />
-                <p className="text-xs text-muted-foreground">
-                  生成时会由后端自动抓取页面正文。建议输入章节页而不是目录页。
-                </p>
-              </TabsContent>
-              <TabsContent value="text" className="space-y-3 mt-4">
-                <p className="text-sm text-muted-foreground">
-                  直接粘贴章节文字、读书笔记或摘要都可以。
-                </p>
-              </TabsContent>
-            </Tabs>
+        <Tabs value={workbenchMode} onValueChange={(value) => setWorkbenchMode(value as 'semantic' | 'list-import')}>
+          <TabsList className="grid w-full grid-cols-2 max-w-xl">
+            <TabsTrigger value="semantic" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              语义拆解生成
+            </TabsTrigger>
+            <TabsTrigger value="list-import" className="gap-2">
+              <ListPlus className="h-4 w-4" />
+              列表一键导入
+            </TabsTrigger>
+          </TabsList>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="topic">任务分类主题</Label>
-                <Input
-                  id="topic"
-                  value={topic}
-                  onChange={(event) => setTopic(event.target.value)}
-                  placeholder="例如：对比学习、信息瓶颈、生成模型"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-count">任务数量（1-20）</Label>
-                <Input
-                  id="task-count"
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={taskCount}
-                  onChange={(event) => {
-                    const parsed = Number(event.target.value);
-                    if (Number.isNaN(parsed)) return;
-                    setTaskCount(Math.max(1, Math.min(20, parsed)));
-                  }}
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="use-vector"
-                checked={useVector}
-                onCheckedChange={(checked) => setUseVector(Boolean(checked))}
-              />
-              <Label htmlFor="use-vector">使用向量检索增强拆书（推荐）</Label>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="debug-raw-model"
-                checked={debugRawModel}
-                onCheckedChange={(checked) => setDebugRawModel(Boolean(checked))}
-              />
-              <Label htmlFor="debug-raw-model">显示模型原始输出（调试）</Label>
-            </div>
+          <TabsContent value="semantic" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookMarked className="h-5 w-5 text-primary" />
+                  内容输入
+                </CardTitle>
+                <CardDescription>
+                  支持网页自动抓取正文，并通过向量检索 + API 语义拆解生成任务。
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Tabs value={sourceType} onValueChange={(value) => setSourceType(value as 'url' | 'text')}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="url" className="gap-2">
+                      <Globe className="h-4 w-4" />
+                      网页来源
+                    </TabsTrigger>
+                    <TabsTrigger value="text" className="gap-2">
+                      <FileText className="h-4 w-4" />
+                      纯文本来源
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="url" className="space-y-3 mt-4">
+                    <Label htmlFor="source-url">网页地址</Label>
+                    <Input
+                      id="source-url"
+                      value={sourceUrl}
+                      onChange={(event) => setSourceUrl(event.target.value)}
+                      placeholder="输入需要拆解的网页链接"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      生成时会由后端自动抓取页面正文。建议输入章节页而不是目录页。
+                    </p>
+                  </TabsContent>
+                  <TabsContent value="text" className="space-y-3 mt-4">
+                    <p className="text-sm text-muted-foreground">
+                      直接粘贴章节文字、读书笔记或摘要都可以。
+                    </p>
+                  </TabsContent>
+                </Tabs>
 
-            <div className="space-y-2">
-              <Label htmlFor="source-text">拆解文本（可选）</Label>
-              <Textarea
-                id="source-text"
-                value={sourceText}
-                onChange={(event) => setSourceText(event.target.value)}
-                rows={12}
-                placeholder="可直接粘贴正文；若填写了网页地址，也可留空让系统自动抓取..."
-              />
-            </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="topic">任务分类主题</Label>
+                    <Input
+                      id="topic"
+                      value={topic}
+                      onChange={(event) => setTopic(event.target.value)}
+                      placeholder="例如：对比学习、信息瓶颈、生成模型"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="task-count">任务数量（1-20）</Label>
+                    <Input
+                      id="task-count"
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={taskCount}
+                      onChange={(event) => {
+                        const parsed = Number(event.target.value);
+                        if (Number.isNaN(parsed)) return;
+                        setTaskCount(Math.max(1, Math.min(20, parsed)));
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="use-vector"
+                    checked={useVector}
+                    onCheckedChange={(checked) => setUseVector(Boolean(checked))}
+                  />
+                  <Label htmlFor="use-vector">使用向量检索增强拆书（推荐）</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="debug-raw-model"
+                    checked={debugRawModel}
+                    onCheckedChange={(checked) => setDebugRawModel(Boolean(checked))}
+                  />
+                  <Label htmlFor="debug-raw-model">显示模型原始输出（调试）</Label>
+                </div>
 
-            <Button onClick={() => void handleGenerate()} disabled={generating || !canGenerate} className="gap-2">
-              {generating ? (
-                <>
-                  <Sparkles className="h-4 w-4 animate-pulse" />
-                  拆解中...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  生成拆书任务
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+                <div className="space-y-2">
+                  <Label htmlFor="source-text">拆解文本（可选）</Label>
+                  <Textarea
+                    id="source-text"
+                    value={sourceText}
+                    onChange={(event) => setSourceText(event.target.value)}
+                    rows={12}
+                    placeholder="可直接粘贴正文；若填写了网页地址，也可留空让系统自动抓取..."
+                  />
+                </div>
+
+                <Button onClick={() => void handleGenerate()} disabled={generating || !canGenerate} className="gap-2">
+                  {generating ? (
+                    <>
+                      <Sparkles className="h-4 w-4 animate-pulse" />
+                      拆解中...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      生成拆书任务
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="list-import" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ListPlus className="h-5 w-5 text-primary" />
+                  列表导入
+                </CardTitle>
+                <CardDescription>
+                  直接粘贴编号题目，支持“1. 题目A 2. 题目B”或按行输入，系统会按正则切分并生成可保存的任务草稿。
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="import-category">分类</Label>
+                    <Input
+                      id="import-category"
+                      value={importCategory}
+                      onChange={(event) => setImportCategory(event.target.value)}
+                      placeholder="例如：我的自选题"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="import-difficulty">默认难度</Label>
+                    <Tabs
+                      value={importDifficultyType}
+                      onValueChange={(value) => setImportDifficultyType(value as DifficultyType)}
+                    >
+                      <TabsList id="import-difficulty" className="grid w-full grid-cols-3">
+                        <TabsTrigger value="level1">Level 1</TabsTrigger>
+                        <TabsTrigger value="level2">Level 2</TabsTrigger>
+                        <TabsTrigger value="level3">Level 3</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="list-input">编号题目列表</Label>
+                  <Textarea
+                    id="list-input"
+                    value={listInput}
+                    onChange={(event) => setListInput(event.target.value)}
+                    rows={10}
+                    placeholder={'示例：\n1. 坚持对一个人的重要性\n2. 如何做一个情绪稳定的人\n3. 你最近一次深度学习复盘的收获'}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    支持符号："1."、"1)"、"1、"。导入后可直接在下方预览并保存到练习池。
+                  </p>
+                </div>
+
+                <Button onClick={handleImportByList} className="gap-2">
+                  <ListPlus className="h-4 w-4" />
+                  一键切分并导入
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         <Card>
           <CardHeader>

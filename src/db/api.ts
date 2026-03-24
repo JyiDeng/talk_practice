@@ -169,16 +169,7 @@ export async function deletePracticeTask(taskId: string) {
   if (error) throw error;
 }
 
-export async function getTodayTask(userId: string, language = '中文') {
-  try {
-    const result = await callDifficultyAdjustment({ language });
-    if (result.task) {
-      return result.task;
-    }
-  } catch (error) {
-    console.warn('获取个性化推荐失败，回退到最新任务:', error);
-  }
-
+export async function getLatestTodayTask(language = '中文') {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
@@ -204,6 +195,10 @@ export async function getTodayTask(userId: string, language = '中文') {
 
   if (latestError) throw latestError;
   return latestTasks?.[0] as PracticeTask | null;
+}
+
+export async function getTodayTask(language = '中文') {
+  return getLatestTodayTask(language);
 }
 
 // ==================== 练习记录相关 ====================

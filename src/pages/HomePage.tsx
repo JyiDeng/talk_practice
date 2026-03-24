@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { PracticeTaskCard } from '@/components/PracticeTaskCard';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getTodayTask, getPracticeRecords } from '@/db/api';
+import { getLatestTodayTask, getPracticeRecords } from '@/db/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { BookOpen, TrendingUp, Award, Calendar } from 'lucide-react';
 import type { PracticeTask, PracticeRecord } from '@/types';
@@ -34,7 +34,7 @@ export default function HomePage() {
       setLoading(true);
 
       const [taskResult, recordsResult] = await Promise.allSettled([
-        getTodayTask(user.id),
+        getLatestTodayTask('中文'),
         getPracticeRecords(user.id, 5),
       ]);
 

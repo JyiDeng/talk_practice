@@ -47,10 +47,6 @@ export default function PracticePage() {
       setLevel2Tasks(level2);
       setLevel3Tasks(level3);
 
-      // 如果今天还没有任务，自动生成
-      if (data?.length === 0) {
-        await handleGenerateTasks();
-      }
     } catch (error) {
       console.error('加载任务失败:', error);
       toast.error('加载任务失败');
