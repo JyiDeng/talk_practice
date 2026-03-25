@@ -85,6 +85,10 @@ pnpm build
 pnpm preview
 ```
 
+## Deployment
+
+- 1Panel + Docker image deployment guide: [docs/deploy-1panel.md](docs/deploy-1panel.md)
+
 ## Environment Variables
 
 Create `.env` (for local app + local function serving) and define:

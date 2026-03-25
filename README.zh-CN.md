@@ -87,6 +87,10 @@ pnpm build
 pnpm preview
 ```
 
+## 部署
+
+- 1Panel + Docker 镜像部署指南： [docs/deploy-1panel.md](docs/deploy-1panel.md)
+
 ## 环境变量
 
 在项目根目录创建 `.env`，并配置：
